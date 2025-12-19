@@ -54,6 +54,26 @@ spec:
                     type: string
                     description: Kubernetes provider config name. Falls back to metadata.name then "default".
 
+              memberAccountsProviderConfigs:
+                type: object
+                description: |
+                  Configuration for creating AWS ProviderConfigs for each member account.
+                  Uses Kubernetes Object resources to manage cluster-scoped ProviderConfigs.
+                properties:
+                  enabled:
+                    type: boolean
+                    description: Enable creation of ProviderConfigs for member accounts. Defaults to true.
+                    default: true
+                  managementPolicies:
+                    type: array
+                    description: |
+                      ManagementPolicies for the Kubernetes Object resources that create ProviderConfigs.
+                      Defaults to ["*"]. Set explicitly for e2e testing scenarios.
+                    items:
+                      type: string
+                      enum: ["*", Create, Observe, Update, Delete, LateInitialize]
+                    default: ["*"]
+
               tags:
                 type: object
                 description: Default tags applied to all AWS resources.
