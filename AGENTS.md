@@ -1,6 +1,6 @@
-# AGENTS.md - configuration-aws-foundations
+# AGENTS.md - configuration-aws-foundation
 
-This is a Crossplane XRD Configuration package for Foundation - a meta-composite that orchestrates Organization, IdentityCenter, and IPAM composites.
+This is a Crossplane XRD Configuration package for Foundation - a meta-composite that orchestrates Organization, IdentityCenter, and IPAM XRDs and creates Account ProviderConfigs.
 
 ## Important Notes
 
@@ -11,59 +11,110 @@ This is a Crossplane XRD Configuration package for Foundation - a meta-composite
 
 ```
 apis/foundations/
-  definition.yaml     # XRD definition
-  composition.yaml    # Composition using Go templates
+  definition.yaml       # XRD definition
+  composition.yaml      # Composition using Go templates
 examples/foundations/
-  example-standard.yaml   # Full example with all three composites
-  example-minimal.yaml    # Minimal example with just Organization
+  individual.yaml       # Single-account setup (Identity Center + IPAM)
+  enterprise.yaml       # Multi-account setup (Organization + all components)
+  minimal.yaml          # Organization only
+  import-existing.yaml  # Import existing resources
+examples/observed-resources/
+  enterprise/steps/1/   # Observed resources for multi-step rendering
 functions/render/
-  00-desired-values.yaml.gotmpl    # Extract spec values
-  10-observed-values.yaml.gotmpl   # Check Ready conditions
-  20-organization.yaml.gotmpl      # Create Organization composite
-  30-identity-center.yaml.gotmpl   # Create IdentityCenter composite
-  40-ipam.yaml.gotmpl              # Create IPAM composite
-  99-status.yaml.gotmpl            # Surface status values
+  00-desired-values.yaml.gotmpl     # Extract spec values
+  09-observed-values.yaml.gotmpl    # Check Ready conditions, resolve IDs
+  10-organization.yaml.gotmpl       # Create Organization XRD
+  20-identity-center.yaml.gotmpl    # Create IdentityCenter XRD
+  30-ipam.yaml.gotmpl               # Create IPAM XRD
+  40-account-providerconfigs.yaml.gotmpl  # Create ProviderConfigs per account
+  99-status.yaml.gotmpl             # Surface status values
 tests/
-  # KCL-based tests
+  e2etest-aws-foundation/           # E2E test (Identity Center + IPAM)
+```
+
+## Architecture
+
+```
+Foundation XR
+├── Organization XRD (optional)
+│   └── Creates: Organization, OUs, Accounts, Delegated Admins
+├── IdentityCenter XRD (optional)
+│   └── Creates: Groups, Users, Permission Sets, Account Assignments
+├── IPAM XRD (optional)
+│   └── Creates: IPAM, Pools, RAM Shares
+└── Account ProviderConfigs
+    └── Creates: ProviderConfig per account (assumes OrganizationAccountAccessRole)
 ```
 
 ## Key Patterns
 
 ### Pass-Through Specs
-The Foundation XRD uses `x-kubernetes-preserve-unknown-fields: true` to pass through the full specs of the underlying composites:
-- `spec.organization` -> Organization composite spec
-- `spec.identityCenter` -> IdentityCenter composite spec
-- `spec.ipam` -> IPAM composite spec
+The Foundation XRD uses `x-kubernetes-preserve-unknown-fields: true` to pass through the full specs of the underlying XRDs:
+- `spec.organization` -> Organization XRD spec
+- `spec.identityCenter` -> IdentityCenter XRD spec
+- `spec.ipam` -> IPAM XRD spec
+
+### Name-Based Resolution
+Foundation resolves account and OU names to IDs for downstream resources:
+- `spec.identityCenter.permissionSets[].assignToAccounts` - account names resolved to IDs
+- `spec.ipam.delegatedAdminAccount` - account name resolved to ID
+- `spec.ipam.pools[].ramShareTargets[].ou` - OU path resolved to ID
+- `spec.ipam.pools[].ramShareTargets[].account` - account name resolved to ID
 
 ### Observed-State Gating
-The composition waits for the Organization to be Ready before creating IdentityCenter and IPAM composites:
+The composition waits for Organization to be Ready before creating resources that depend on account/OU IDs:
 ```go-template
-{{ if $organizationReady }}
+{{ if and $accountReady (ne $accountId "Pending") }}
 ---
-apiVersion: aws.hops.ops.com.ai/v1alpha1
-kind: IdentityCenter
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
 ...
 {{ end }}
 ```
 
+### Account ProviderConfigs
+For each account in `spec.accounts`, Foundation creates a ProviderConfig that assumes `OrganizationAccountAccessRole` (AWS auto-creates this role when accounts are created via Organizations):
+```yaml
+spec:
+  assumeRoleChain:
+    - roleARN: arn:aws:iam::<account-id>:role/OrganizationAccountAccessRole
+  credentials:
+    source: PodIdentity
+```
+
 ### Status Aggregation
-Status is aggregated from all three composites into a unified status:
+Status is aggregated from all XRDs into a unified status:
 ```yaml
 status:
-  ready: true/false  # All composites ready
-  organization: { ... }
-  identityCenter: { ... }
-  ipam: { ... }
+  ready: true/false
+  organization:
+    organizationId: o-xxx
+    rootId: r-xxx
+  organizationalUnits:
+    Security: ou-xxx
+    Workloads/Prod: ou-yyy
+  accounts:
+    - name: acme-prod
+      id: "123456789012"
+      ready: true
+  identityCenter:
+    ready: true
+  ipam:
+    ready: true
+    id: ipam-xxx
 ```
 
 ## Development Commands
 
 ```bash
-make render-example-standard   # Render full example
-make render-example-minimal    # Render minimal example
-make test                      # Run KCL tests
-make validate                  # Validate compositions
-make build                     # Build package
+make render-individual      # Render single-account example
+make render-enterprise      # Render multi-account example
+make render-minimal         # Render organization-only example
+make render-enterprise-step-1  # Render with observed Organization ready
+make test                   # Run KCL tests
+make validate               # Validate compositions
+make e2e                    # Run E2E tests
+make build                  # Build package
 ```
 
 ## Dependencies

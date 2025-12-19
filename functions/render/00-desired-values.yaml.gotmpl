@@ -63,6 +63,9 @@
 {{- $ipamScope := $ipam.scope | default $ipamScopeDefault }}
 {{- $ipamHomeRegion := $ipam.homeRegion | default $awsRegion }}
 {{- $ipamOperatingRegions := $ipam.operatingRegions | default (list $ipamHomeRegion) }}
+{{- $ipamManagementPolicies := $ipam.managementPolicies | default $managementPolicies }}
+# IPAM resource settings (externalName, forProvider) - passed to IPAM XRD spec.ipam
+{{- $ipamConfig := $ipam.ipam | default (dict) }}
 
 # Build account lookup for name -> config
 {{- $accountsByName := dict }}

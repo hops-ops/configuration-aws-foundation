@@ -186,7 +186,7 @@ spec:
   # IPAM (IP Address Manager) - Dual-Stack Configuration
   # ---------------------------------------------------------------------------
   # Centralized IP allocation with RAM sharing to OUs
-  # Supports both IPv4 and IPv6 for EKS dual-stack/IPv6-only clusters
+  # Supports both IPv4 and IPv6 for dual-stack workloads
   #
   # Pool Architecture:
   # - IPv4 pools: Private scope, explicit CIDRs (10.x.x.x ranges)
@@ -266,17 +266,15 @@ spec:
           - ou: Infrastructure
 
       # ==========================================================================
-      # IPv6 Public Pools (Amazon-provided for EKS dual-stack)
+      # IPv6 Public Pools (Amazon-provided GUA)
       # ==========================================================================
       # These pools use Amazon's public IPv6 address space.
       # Each pool gets a /52 that can allocate /56 blocks to VPCs.
-      # Required for EKS clusters with internet-routable IPv6 addresses.
       #
-      # EKS IPv6 Requirements:
-      # - VPC needs both IPv4 and IPv6 CIDRs
+      # Dual-stack benefits:
+      # - VPC gets both IPv4 and IPv6 CIDRs
       # - Subnets get /64 from VPC's /56
-      # - Pods use IPv6 addresses (or dual-stack)
-      # - Nodes are always dual-stack
+      # - Pods can use IPv6 addresses directly
       # - Prefix delegation provides /80 per node for scalable pod addressing
 
       # Production IPv6 pool - US East 1 (Amazon-provided)
@@ -291,7 +289,7 @@ spec:
         allocationDefaultNetmaskLength: 56
         allocationMinNetmaskLength: 52
         allocationMaxNetmaskLength: 60
-        description: Production IPv6 VPCs in US East 1 (Amazon GUA for EKS)
+        description: Production IPv6 VPCs in US East 1 (Amazon GUA)
         labels:
           environment: production
           region: us-east-1
@@ -311,7 +309,7 @@ spec:
         allocationDefaultNetmaskLength: 56
         allocationMinNetmaskLength: 52
         allocationMaxNetmaskLength: 60
-        description: Production IPv6 VPCs in US West 2 (Amazon GUA for EKS)
+        description: Production IPv6 VPCs in US West 2 (Amazon GUA)
         labels:
           environment: production
           region: us-west-2
@@ -331,7 +329,7 @@ spec:
         allocationDefaultNetmaskLength: 56
         allocationMinNetmaskLength: 56
         allocationMaxNetmaskLength: 60
-        description: Non-production IPv6 VPCs (Amazon GUA for EKS)
+        description: Non-production IPv6 VPCs (Amazon GUA)
         labels:
           environment: non-production
           eks-ready: "true"

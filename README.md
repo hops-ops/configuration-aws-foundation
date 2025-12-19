@@ -1,153 +1,41 @@
 # configuration-aws-foundation
 
-Foundation creates the entire AWS foundational layer in a single resource:
+Foundation provides a single resource to manage your entire AWS foundation, from solo developer to enterprise. Start simple and evolve as you grow.
 
-- **Organization** - AWS Organization with OUs and accounts
-- **Cross-Account Access** - Bootstrap ProviderConfigs, permission boundaries, and cross-account-access roles
-- **Identity Center** - AWS IAM Identity Center with groups, users, and permission sets
-- **IPAM** - AWS VPC IP Address Manager with pools for centralized IP allocation
+## The Journey
 
-## Reconciliation Flow
+### Stage 1: Individual Developer
 
-The composition renders resources in stages, waiting for dependencies to become Ready before proceeding:
+You have one AWS account. You want SSO access and organized IP allocation for your VPCs.
 
-```mermaid
-flowchart TD
-    subgraph Step1["Step 1: Organization + OUs"]
-        ORG[Organization]
-        OU1[OU: Security]
-        OU2[OU: Infrastructure]
-        OU3[OU: Workloads]
-        OU4[OU: Workloads/Prod]
-        OU5[OU: Workloads/Non-Prod]
-    end
+**What you need:**
+- Identity Center for SSO (stop using IAM users)
+- IPAM for automatic VPC CIDR allocation (no more spreadsheets)
 
-    subgraph Step2["Step 2: Accounts"]
-        ACC1[Account: security-tooling]
-        ACC2[Account: shared-services]
-        ACC3[Account: prod]
-        ACC4[Account: staging]
-        ACC5[Account: dev]
-    end
+**Why Identity Center?**
+- Federate with Google/Okta/Azure AD later without changing anything
+- Time-limited credentials (no long-lived access keys)
+- Single place to manage who has access to what
 
-    subgraph Step3["Step 3: Bootstrap + Identity Center + IPAM"]
-        direction TB
-        BPC[Bootstrap ProviderConfigs]
-        DA[Delegated Administrators]
-        GROUPS[Identity Store Groups]
-        USERS[Identity Store Users]
-        PS[Permission Sets]
-        IPAM[IPAM + Pools]
-    end
-
-    subgraph Step4["Step 4: Permission Boundaries"]
-        PB[Permission Boundaries per Account]
-    end
-
-    subgraph Step5["Step 5: Cross-Account Access"]
-        ROLES[Cross-Account Roles]
-        APC[Account ProviderConfigs]
-    end
-
-    subgraph Step6["Step 6: Assignments + RAM Shares"]
-        ASSIGN[Account Assignments]
-        MPA[Managed Policy Attachments]
-        RAM[RAM Shares + Principal Associations]
-    end
-
-    Step1 -->|"Ready: orgId, rootId"| Step2
-    Step2 -->|"Ready: accountIds"| Step3
-    Step3 -->|"Ready: bootstrap PCs"| Step4
-    Step4 -->|"Ready: boundaryArns"| Step5
-    Step3 -->|"Ready: groups, permissionSets, pools"| Step6
-    Step5 -->|"Ready: roleArns"| APC
-```
-
-## Bootstrap Pattern
-
-The key insight is how we get credentials to create resources **inside** member accounts:
-
-1. **Management Account** creates Organizations Accounts
-2. AWS automatically creates `OrganizationAccountAccessRole` in each new account
-3. **Bootstrap ProviderConfig** assumes `OrganizationAccountAccessRole` to create IAM resources
-4. **Permission Boundary** and **cross-account-access Role** are created in member account
-5. **Final ProviderConfig** assumes `cross-account-access` role for downstream use
-
-```mermaid
-sequenceDiagram
-    participant MC as Management Account
-    participant AWS as AWS Organizations
-    participant MA as Member Account
-    participant XP as Crossplane
-
-    MC->>AWS: Create Organizations Account
-    AWS->>MA: Auto-create OrganizationAccountAccessRole
-    AWS-->>MC: Account Ready (ID: 123456789012)
-
-    XP->>XP: Create Bootstrap ProviderConfig
-    Note over XP: assumes OrganizationAccountAccessRole
-
-    XP->>MA: Create Permission Boundary (via Bootstrap PC)
-    XP->>MA: Create cross-account-access Role (via Bootstrap PC)
-
-    XP->>XP: Create Account ProviderConfig
-    Note over XP: assumes cross-account-access
-
-    XP->>MA: Downstream resources use Account PC
-```
-
-## Usage
+**Why IPAM?**
+- Request CIDRs from pools instead of manually tracking ranges
+- Dual-stack ready (IPv4 + IPv6) for modern workloads
+- When you add accounts later, VPCs won't overlap
 
 ```yaml
 apiVersion: aws.hops.ops.com.ai/v1alpha1
 kind: Foundation
 metadata:
-  name: acme
-  namespace: acme
+  name: my-foundation
+  namespace: default
 spec:
   managementPolicies: ["*"]
 
   aws:
-    providerConfig: aws-management-account
+    providerConfig: default
     region: us-east-1
 
-  tags:
-    organization: acme
-
-  organizationalUnits:
-    - path: Security
-    - path: Infrastructure
-    - path: Workloads
-    - path: Workloads/Prod
-    - path: Workloads/Non-Prod
-
-  accounts:
-    - name: acme-security-tooling
-      email: security-tooling@acme.example.com
-      ou: Security
-
-    - name: acme-shared-services
-      email: shared-services@acme.example.com
-      ou: Infrastructure
-
-    - name: acme-prod
-      email: prod@acme.example.com
-      ou: Workloads/Prod
-
-    - name: acme-dev
-      email: dev@acme.example.com
-      ou: Workloads/Non-Prod
-      crossAccountAccess:
-        role:
-          managedPolicyArns:
-            - arn:aws:iam::aws:policy/PowerUserAccess  # Override default
-
-  delegatedAdministrators:
-    - servicePrincipal: sso.amazonaws.com
-      account: acme-shared-services
-    - servicePrincipal: ipam.amazonaws.com
-      account: acme-shared-services
-
+  # SSO access - get identityStoreId and instanceArn from AWS SSO console
   identityCenter:
     region: us-east-1
     identityStoreId: d-1234567890
@@ -159,130 +47,26 @@ spec:
 
     permissionSets:
       - name: AdministratorAccess
+        sessionDuration: PT4H  # 4 hour sessions
         managedPolicies:
           - arn:aws:iam::aws:policy/AdministratorAccess
-        assignToGroups:
-          - Administrators
-        assignToAccounts:  # Reference by name!
-          - acme-shared-services
-          - acme-prod
 
-  ipam:
-    delegatedAdminAccount: acme-shared-services  # Reference by name!
-    homeRegion: us-east-1
-    operatingRegions:
-      - us-east-1
-      - us-west-2
-    pools:
-      - name: prod-us-east-1
-        cidr: 10.0.0.0/12
-        allocationDefaultNetmaskLength: 20
-        ramShareTargets:
-          - ou: Workloads/Prod
-```
-
-## Status
-
-```yaml
-status:
-  ready: true
-  organization:
-    ready: true
-    organizationId: o-abc123
-    managementAccountId: "111111111111"
-    rootId: r-abc1
-  organizationalUnits:
-    Security: ou-abc1-security
-    Infrastructure: ou-abc1-infrastructure
-    Workloads: ou-abc1-workloads
-    Workloads/Prod: ou-abc1-workloads-prod
-    Workloads/Non-Prod: ou-abc1-workloads-non-prod
-  accounts:
-    - name: acme-shared-services
-      id: "222222222222"
-      ready: true
-      crossAccountAccessRoleArn: arn:aws:iam::222222222222:role/cross-account-access
-      providerConfigName: acme-shared-services
-    - name: acme-prod
-      id: "333333333333"
-      ready: true
-      crossAccountAccessRoleArn: arn:aws:iam::333333333333:role/cross-account-access
-      providerConfigName: acme-prod
-  identityCenter:
-    ready: true
-    instanceArn: arn:aws:sso:::instance/ssoins-abcdef
-    identityStoreId: d-1234567890
-    groups:
-      - name: Administrators
-        id: 12345678-abcd-...
-    permissionSets:
-      - name: AdministratorAccess
-        arn: arn:aws:sso:::permissionSet/ssoins-.../ps-...
-  ipam:
-    ready: true
-    id: ipam-12345678
-    arn: arn:aws:ec2:us-east-1:222222222222:ipam/ipam-12345678
-    region: us-east-1
-    pools:
-      - name: prod-us-east-1
-        id: ipam-pool-abcd1234
-        cidr: 10.0.0.0/12
-```
-
-## Using Account ProviderConfigs
-
-After the Foundation is ready, downstream compositions can reference member accounts by name:
-
-```yaml
-apiVersion: ec2.aws.m.upbound.io/v1beta1
-kind: VPC
-metadata:
-  name: prod-vpc
-spec:
-  providerConfigRef:
-    name: acme-prod  # Uses cross-account-access role automatically
-  forProvider:
-    cidrBlock: 10.0.0.0/16
-    region: us-east-1
-```
-
-## Dual-Stack VPCs and EKS IPv6/Auto Mode
-
-The Foundation's IPAM supports both IPv4 and IPv6 pools for creating dual-stack VPCs
-that work with EKS IPv6-mode clusters and EKS Auto Mode.
-
-### Individual (Single-Account) Setup
-
-For individuals and small teams, the Foundation provides a simple dual-stack IPAM
-configuration perfect for EKS Auto Mode and internal microservices:
-
-```yaml
-apiVersion: aws.hops.ops.com.ai/v1alpha1
-kind: Foundation
-metadata:
-  name: my-foundation
-spec:
-  managementPolicies: ["*"]
-
-  aws:
-    providerConfig: default
-    region: us-east-1
-
+  # IP address management - dual-stack for modern workloads
   ipam:
     scope: private
     homeRegion: us-east-1
-    operatingRegions:
-      - us-east-1
+    operatingRegions: [us-east-1]
 
     pools:
-      # IPv4 for VPCs, control plane, nodes
+      # IPv4 for VPCs - 10.0.0.0/8 gives you 16 million addresses
       - name: ipv4
         addressFamily: ipv4
         region: us-east-1
         cidr: 10.0.0.0/8
-        allocationDefaultNetmaskLength: 20
+        allocationDefaultNetmaskLength: 20  # /20 = 4096 IPs per VPC
 
-      # IPv6 public for EKS Auto Mode (Amazon-provided)
+      # IPv6 public - Amazon provides /52, you allocate /56 per VPC
+      # Enables dual-stack networking for modern workloads
       - name: ipv6-public
         addressFamily: ipv6
         scope: public
@@ -292,213 +76,372 @@ spec:
         publicIpSource: amazon
         awsService: ec2
         allocationDefaultNetmaskLength: 56
+```
 
-      # IPv6 private for internal microservices (ULA)
-      - name: ipv6-private
+### Stage 2: Small Team
+
+You're hiring. You need different access levels and maybe a separate dev environment.
+
+**What changes:**
+- Add groups for different roles (Developers, ReadOnly)
+- Add more permission sets with appropriate policies
+- Consider adding a second AWS account for dev/staging
+
+```yaml
+# Add to identityCenter section:
+groups:
+  - name: Administrators
+    description: Full admin access
+  - name: Developers
+    description: Can deploy and debug, no IAM changes
+  - name: ReadOnly
+    description: View resources only
+
+permissionSets:
+  - name: AdministratorAccess
+    sessionDuration: PT4H
+    managedPolicies:
+      - arn:aws:iam::aws:policy/AdministratorAccess
+
+  - name: PowerUserAccess
+    sessionDuration: PT8H  # Longer sessions for developers
+    managedPolicies:
+      - arn:aws:iam::aws:policy/PowerUserAccess
+
+  - name: ViewOnlyAccess
+    sessionDuration: PT1H
+    managedPolicies:
+      - arn:aws:iam::aws:policy/ViewOnlyAccess
+```
+
+### Stage 3: Multiple Accounts
+
+You need environment isolation. Production shouldn't share an account with dev.
+
+**What you need:**
+- AWS Organization to create and manage accounts
+- Organizational Units (OUs) for grouping accounts
+- Permission sets assigned to specific accounts
+- IPAM pools shared across accounts
+
+**Why Organizations?**
+- Consolidated billing
+- Service Control Policies (SCPs) for guardrails
+- Centralized Identity Center management
+- Account factory - spin up new accounts in minutes
+
+**Why OUs?**
+- Apply policies to groups of accounts
+- Share IPAM pools with entire OUs via RAM
+- Logical grouping (Workloads/Prod vs Workloads/Dev)
+
+```yaml
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Foundation
+metadata:
+  name: acme
+  namespace: default
+spec:
+  managementPolicies: ["*"]
+
+  aws:
+    providerConfig: management-account
+    region: us-east-1
+
+  tags:
+    organization: acme
+    managed-by: crossplane
+
+  # Enable AWS Organizations
+  organization:
+    awsServiceAccessPrincipals:
+      - sso.amazonaws.com
+
+  # Create OU hierarchy
+  organizationalUnits:
+    - path: Workloads
+    - path: Workloads/Prod
+    - path: Workloads/Dev
+
+  # Create accounts in OUs
+  accounts:
+    - name: acme-prod
+      email: aws-prod@acme.example.com
+      ou: Workloads/Prod
+
+    - name: acme-dev
+      email: aws-dev@acme.example.com
+      ou: Workloads/Dev
+
+  identityCenter:
+    region: us-east-1
+    identityStoreId: d-1234567890
+    instanceArn: arn:aws:sso:::instance/ssoins-abcdef
+
+    groups:
+      - name: Administrators
+      - name: Developers
+
+    permissionSets:
+      - name: AdministratorAccess
+        managedPolicies:
+          - arn:aws:iam::aws:policy/AdministratorAccess
+        assignToGroups: [Administrators]
+        assignToAccounts: [acme-prod, acme-dev]  # Reference by name
+
+      - name: PowerUserAccess
+        managedPolicies:
+          - arn:aws:iam::aws:policy/PowerUserAccess
+        assignToGroups: [Developers]
+        assignToAccounts: [acme-dev]  # Developers only get dev access
+
+  ipam:
+    scope: private
+    homeRegion: us-east-1
+    operatingRegions: [us-east-1]
+
+    pools:
+      - name: ipv4
+        addressFamily: ipv4
+        region: us-east-1
+        cidr: 10.0.0.0/8
+        allocationDefaultNetmaskLength: 20
+
+      - name: ipv6-public
         addressFamily: ipv6
-        scope: private
+        scope: public
         region: us-east-1
         locale: us-east-1
-        cidr: fd00:my:app::/48
+        amazonProvidedIpv6CidrBlock: true
+        publicIpSource: amazon
+        awsService: ec2
         allocationDefaultNetmaskLength: 56
 ```
 
-After the Foundation is ready, reference pool IDs when creating VPCs:
+### Stage 4: Enterprise
+
+You have dedicated teams, compliance requirements, and need centralized services.
+
+**What changes:**
+- Dedicated accounts for security tooling, shared services, logging
+- Delegated administration (Identity Center and IPAM managed from shared-services, not management account)
+- Separate IPAM pools per environment with RAM sharing to OUs
+- More granular permission sets
+
+**Why delegate administration?**
+- Management account should only manage Organizations
+- Reduces blast radius if credentials are compromised
+- Teams can self-service within their delegated scope
+
+**Why separate IPAM pools?**
+- Prod and dev don't compete for IP space
+- Different allocation sizes per environment
+- Clear boundaries and quotas
 
 ```yaml
-apiVersion: ec2.aws.m.upbound.io/v1beta1
-kind: VPC
-spec:
-  forProvider:
-    region: us-east-1
-    ipv4IpamPoolId: ipam-pool-xxx      # status.ipam.pools[name=ipv4].id
-    ipv4NetmaskLength: 20
-    ipv6IpamPoolId: ipam-pool-yyy      # status.ipam.pools[name=ipv6-public].id
-    ipv6NetmaskLength: 56
-    # Or use ipv6-private pool for internal-only microservices
-```
-
-### Enterprise (Multi-Account) Setup
-
-For organizations with multiple AWS accounts, the Foundation supports complex
-IPAM pool hierarchies with RAM sharing to OUs.
-
-#### IPAM Pool Architecture
-
-```
-IPAM
-├── Private Scope
-│   ├── IPv4 Pools (10.x.x.x ranges)
-│   │   ├── prod-ipv4-us-east-1 (10.0.0.0/12)
-│   │   ├── non-prod-ipv4-us-east-1 (10.32.0.0/12)
-│   │   └── shared-services-ipv4 (10.48.0.0/16)
-│   └── IPv6 Private Pools (ULA - internal only)
-│       └── internal-ipv6-us-east-1 (fd00:acme:0::/48)
-│
-└── Public Scope
-    └── IPv6 Public Pools (Amazon-provided GUA)
-        ├── prod-ipv6-us-east-1 (AWS allocates /52)
-        ├── non-prod-ipv6-us-east-1 (AWS allocates /52)
-        └── shared-services-ipv6 (AWS allocates /52)
-```
-
-### Pool Types
-
-| Pool Type | Scope | Address Source | Use Case |
-|-----------|-------|----------------|----------|
-| IPv4 | Private | Explicit CIDR (e.g., 10.0.0.0/12) | VPC primary CIDR |
-| IPv6 Public | Public | Amazon-provided (/52) | Internet-routable IPv6 for EKS |
-| IPv6 Private | Private | ULA (fd00::/8) | Internal-only IPv6 traffic |
-
-### Creating Dual-Stack VPCs
-
-Reference both IPv4 and IPv6 IPAM pool IDs from the Foundation status:
-
-```yaml
-apiVersion: ec2.aws.m.upbound.io/v1beta1
-kind: VPC
+apiVersion: aws.hops.ops.com.ai/v1alpha1
+kind: Foundation
 metadata:
-  name: prod-dual-stack-vpc
+  name: acme
+  namespace: default
+spec:
+  managementPolicies: ["*"]
+
+  aws:
+    providerConfig: management-account
+    region: us-east-1
+
+  tags:
+    organization: acme
+
+  organization:
+    awsServiceAccessPrincipals:
+      - sso.amazonaws.com
+      - ipam.amazonaws.com
+      - ram.amazonaws.com
+
+  organizationalUnits:
+    - path: Security
+    - path: Infrastructure
+    - path: Workloads
+    - path: Workloads/Prod
+    - path: Workloads/NonProd
+
+  accounts:
+    # Security account - GuardDuty, Security Hub, CloudTrail
+    - name: acme-security
+      email: aws-security@acme.example.com
+      ou: Security
+
+    # Shared services - Identity Center admin, IPAM admin, CI/CD
+    - name: acme-shared
+      email: aws-shared@acme.example.com
+      ou: Infrastructure
+
+    # Workload accounts
+    - name: acme-prod
+      email: aws-prod@acme.example.com
+      ou: Workloads/Prod
+
+    - name: acme-staging
+      email: aws-staging@acme.example.com
+      ou: Workloads/NonProd
+
+    - name: acme-dev
+      email: aws-dev@acme.example.com
+      ou: Workloads/NonProd
+
+  # Delegate Identity Center and IPAM to shared-services
+  delegatedAdministrators:
+    - servicePrincipal: sso.amazonaws.com
+      account: acme-shared
+    - servicePrincipal: ipam.amazonaws.com
+      account: acme-shared
+
+  identityCenter:
+    region: us-east-1
+    identityStoreId: d-1234567890
+    instanceArn: arn:aws:sso:::instance/ssoins-abcdef
+
+    groups:
+      - name: PlatformAdmins
+        description: Full access to all accounts
+      - name: SecurityTeam
+        description: Security tooling access
+      - name: ProdEngineers
+        description: Production deployment access
+      - name: Developers
+        description: Development environment access
+
+    permissionSets:
+      - name: AdministratorAccess
+        managedPolicies:
+          - arn:aws:iam::aws:policy/AdministratorAccess
+        assignToGroups: [PlatformAdmins]
+        assignToAccounts: [acme-shared, acme-security, acme-prod, acme-staging, acme-dev]
+
+      - name: SecurityAudit
+        managedPolicies:
+          - arn:aws:iam::aws:policy/SecurityAudit
+        assignToGroups: [SecurityTeam]
+        assignToAccounts: [acme-security, acme-prod, acme-staging, acme-dev]
+
+      - name: ProdDeploy
+        sessionDuration: PT2H  # Short sessions for prod
+        managedPolicies:
+          - arn:aws:iam::aws:policy/PowerUserAccess
+        assignToGroups: [ProdEngineers]
+        assignToAccounts: [acme-prod]
+
+      - name: DevAccess
+        sessionDuration: PT8H
+        managedPolicies:
+          - arn:aws:iam::aws:policy/PowerUserAccess
+        assignToGroups: [Developers]
+        assignToAccounts: [acme-staging, acme-dev]
+
+  ipam:
+    delegatedAdminAccount: acme-shared
+    homeRegion: us-east-1
+    operatingRegions: [us-east-1, us-west-2]
+
+    pools:
+      # Production pool - shared with Workloads/Prod OU
+      - name: prod-ipv4
+        addressFamily: ipv4
+        region: us-east-1
+        cidr: 10.0.0.0/12      # 10.0.0.0 - 10.15.255.255
+        allocationDefaultNetmaskLength: 20
+        ramShareTargets:
+          - ou: Workloads/Prod
+
+      # Non-prod pool - shared with Workloads/NonProd OU
+      - name: nonprod-ipv4
+        addressFamily: ipv4
+        region: us-east-1
+        cidr: 10.16.0.0/12     # 10.16.0.0 - 10.31.255.255
+        allocationDefaultNetmaskLength: 20
+        ramShareTargets:
+          - ou: Workloads/NonProd
+
+      # Shared services pool
+      - name: shared-ipv4
+        addressFamily: ipv4
+        region: us-east-1
+        cidr: 10.32.0.0/16     # 10.32.0.0 - 10.32.255.255
+        allocationDefaultNetmaskLength: 24
+        ramShareTargets:
+          - account: acme-shared
+
+      # IPv6 for all workloads
+      - name: ipv6-public
+        addressFamily: ipv6
+        scope: public
+        region: us-east-1
+        locale: us-east-1
+        amazonProvidedIpv6CidrBlock: true
+        publicIpSource: amazon
+        awsService: ec2
+        allocationDefaultNetmaskLength: 56
+        ramShareTargets:
+          - ou: Workloads
+```
+
+## Using Account ProviderConfigs
+
+Foundation creates a ProviderConfig for each account that assumes `OrganizationAccountAccessRole`. Reference accounts by name in downstream resources:
+
+```yaml
+apiVersion: ec2.aws.m.upbound.io/v1beta1
+kind: VPC
 spec:
   providerConfigRef:
-    name: acme-prod
+    name: acme-prod  # Assumes role into acme-prod account
   forProvider:
     region: us-east-1
-    # IPv4 from IPAM pool
-    ipv4IpamPoolId: ipam-pool-abc123  # status.ipam.pools[name=prod-ipv4-us-east-1].id
+    ipv4IpamPoolId: <from-foundation-status>
     ipv4NetmaskLength: 20
-    # IPv6 from IPAM pool (Amazon-provided)
-    ipv6IpamPoolId: ipam-pool-xyz789  # status.ipam.pools[name=prod-ipv6-us-east-1].id
-    ipv6NetmaskLength: 56  # AWS default for VPCs
-    tags:
-      Name: prod-dual-stack-vpc
 ```
 
-### EKS IPv6 Cluster Requirements
+## Status
 
-For EKS clusters running in IPv6 mode (pods use IPv6 addresses):
-
-1. **VPC**: Must have both IPv4 and IPv6 CIDRs
-   - IPv4: Required for control plane, node management
-   - IPv6: Used for pod networking (prefix delegation)
-
-2. **Subnets**: Dual-stack with /64 IPv6 blocks
-   ```yaml
-   # Each subnet gets /64 from VPC's /56 IPv6 CIDR
-   ipv6CidrBlock: "2600:1f00:xxxx:xx00::/64"  # First subnet
-   ipv6CidrBlock: "2600:1f00:xxxx:xx01::/64"  # Second subnet
-   ```
-
-3. **Prefix Delegation**: EKS Auto Mode/VPC CNI uses /80 prefixes
-   - Each node gets a /80 from subnet's /64
-   - Supports ~65k pods per node
-
-4. **Security Groups**: Must allow IPv6 traffic
-   ```yaml
-   ipv6CidrBlocks:
-     - "::/0"  # All IPv6 for egress
-   ```
-
-### IPv6 Pool Sizing
-
-| Level | Netmask | Addresses | Typical Use |
-|-------|---------|-----------|-------------|
-| IPAM Pool | /52 | 4,096 /64s | Regional allocation |
-| VPC | /56 | 256 /64s | Per-VPC allocation |
-| Subnet | /64 | 18 quintillion | Per-subnet |
-| Node Prefix | /80 | ~65k addresses | Per-node (prefix delegation) |
-
-### Status with Dual-Stack Pools
+Foundation surfaces status from all components:
 
 ```yaml
 status:
+  ready: true
+  organization:
+    organizationId: o-abc123
+    rootId: r-abc1
+  organizationalUnits:
+    Workloads/Prod: ou-xxx-prod
+    Workloads/NonProd: ou-xxx-nonprod
+  accounts:
+    - name: acme-prod
+      id: "111111111111"
+      ready: true
+    - name: acme-dev
+      id: "222222222222"
+      ready: true
+  identityCenter:
+    ready: true
   ipam:
     ready: true
     id: ipam-12345678
-    arn: arn:aws:ec2:us-east-1:222222222222:ipam/ipam-12345678
-    privateScopeId: ipam-scope-private-abc123
-    publicScopeId: ipam-scope-public-xyz789
-    region: us-east-1
     pools:
-      # IPv4 pools
-      - name: prod-ipv4-us-east-1
-        addressFamily: ipv4
-        scope: private
-        id: ipam-pool-ipv4-prod
-        arn: arn:aws:ec2:us-east-1:...:ipam-pool/ipam-pool-ipv4-prod
-        cidr: 10.0.0.0/12
-      # IPv6 public pools (Amazon-provided)
-      - name: prod-ipv6-us-east-1
-        addressFamily: ipv6
-        scope: public
-        id: ipam-pool-ipv6-prod
-        arn: arn:aws:ec2:us-east-1:...:ipam-pool/ipam-pool-ipv6-prod
-        cidr: 2600:1f00:xxxx::/52  # Allocated by Amazon
-      # IPv6 private pools (ULA)
-      - name: internal-ipv6-us-east-1
-        addressFamily: ipv6
-        scope: private
-        id: ipam-pool-ipv6-internal
-        arn: arn:aws:ec2:us-east-1:...:ipam-pool/ipam-pool-ipv6-internal
-        cidr: fd00:acme:0::/48
-```
-
-### Downstream Composition Example
-
-A VPC composition can reference Foundation pools:
-
-```yaml
-# In your VPC composition's gotmpl:
-{{ $foundation := ... }}  # Reference Foundation XR
-{{ $ipv4PoolId := "" }}
-{{ $ipv6PoolId := "" }}
-{{ range $pool := $foundation.status.ipam.pools }}
-  {{ if and (eq $pool.name "prod-ipv4-us-east-1") (eq $pool.addressFamily "ipv4") }}
-    {{ $ipv4PoolId = $pool.id }}
-  {{ end }}
-  {{ if and (eq $pool.name "prod-ipv6-us-east-1") (eq $pool.addressFamily "ipv6") }}
-    {{ $ipv6PoolId = $pool.id }}
-  {{ end }}
-{{ end }}
-
----
-apiVersion: ec2.aws.m.upbound.io/v1beta1
-kind: VPC
-spec:
-  forProvider:
-    ipv4IpamPoolId: {{ $ipv4PoolId }}
-    ipv4NetmaskLength: 20
-    ipv6IpamPoolId: {{ $ipv6PoolId }}
-    ipv6NetmaskLength: 56
+      - name: prod-ipv4
+        id: ipam-pool-abc123
 ```
 
 ## Development
 
 ```bash
-# Render examples
-make render-individual
-make render-enterprise
-make render-import-existing
-
-# Render enterprise with observed resources (test multi-step reconciliation)
-make render-enterprise-step-1  # Organization + OUs ready
-make render-enterprise-step-2  # Accounts ready
-make render-enterprise-step-3  # Bootstrap ProviderConfigs ready
-make render-enterprise-step-4  # Permission Boundaries ready
-make render-enterprise-step-5  # Cross-Account Roles ready
-make render-enterprise-step-6  # Groups + PermissionSets + IPAM ready
-
-# Run all enterprise steps
-make render-enterprise-all-steps
-
-# Run tests
-make test
-
-# Validate
-make validate
-
-# Build package
-make build
+make render-individual     # Stage 1 example
+make render-enterprise     # Stage 4 example
+make render-minimal        # Organization only
+make test                  # Run tests
+make validate              # Validate compositions
+make e2e                   # E2E tests
 ```
 
 ## License

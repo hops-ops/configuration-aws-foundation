@@ -1,91 +1,103 @@
-# Variables
-XR_DIR = apis
-XRM_NAME = foundations
-XRM_COMPOSITION = $(XR_DIR)/$(XRM_NAME)/composition.yaml
-XRM_API_DIR = $(XR_DIR)/$(XRM_NAME)
-EXAMPLES_DIR = examples/$(XRM_NAME)
-TESTS_DIR = tests
-OUTPUT_DIR = _output
-UP_DIR = .up
+SHELL := /bin/bash
+
+PACKAGE ?= configuration-aws-foundation
+XRD_DIR := apis/foundations
+COMPOSITION := $(XRD_DIR)/composition.yaml
+DEFINITION := $(XRD_DIR)/definition.yaml
+EXAMPLE_DEFAULT := examples/foundations/enterprise.yaml
+RENDER_TESTS := $(wildcard tests/test-*)
+E2E_TESTS := $(wildcard tests/e2etest-*)
+
+# Examples list - mirrors GitHub Actions workflow
+# Format: example_path::observed_resources_path (observed_resources_path is optional)
+EXAMPLES := \
+    examples/foundations/minimal.yaml:: \
+    examples/foundations/individual.yaml:: \
+    examples/foundations/enterprise.yaml:: \
+    examples/foundations/enterprise.yaml::examples/observed-resources/enterprise/steps/1 \
+    examples/foundations/import-existing.yaml::
 
 clean:
-	rm -rf $(OUTPUT_DIR)
-	rm -rf $(UP_DIR)
+	rm -rf _output
+	rm -rf .up
 
 build:
 	up project build
 
-# Render examples
-render: render-individual
+# Render all examples
+render\:all:
+	@for entry in $(EXAMPLES); do \
+		example=$${entry%%::*}; \
+		observed=$${entry#*::}; \
+		if [ -n "$$observed" ]; then \
+			echo "=== Rendering $$example with observed-resources $$observed ==="; \
+			up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example --observed-resources=$$observed; \
+		else \
+			echo "=== Rendering $$example ==="; \
+			up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example; \
+		fi; \
+		echo ""; \
+	done
 
-render-all: render-individual render-enterprise render-import-existing render-minimal
+# Validate all examples
+validate\:all:
+	@for entry in $(EXAMPLES); do \
+		example=$${entry%%::*}; \
+		observed=$${entry#*::}; \
+		if [ -n "$$observed" ]; then \
+			echo "=== Validating $$example with observed-resources $$observed ==="; \
+			up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example \
+				--observed-resources=$$observed --include-full-xr --quiet | \
+				crossplane beta validate $(XRD_DIR) --error-on-missing-schemas -; \
+		else \
+			echo "=== Validating $$example ==="; \
+			up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example \
+				--include-full-xr --quiet | \
+				crossplane beta validate $(XRD_DIR) --error-on-missing-schemas -; \
+		fi; \
+		echo ""; \
+	done
 
-render-example:
-	@test -n "$(EXAMPLE_FILE)" || (echo "Please set EXAMPLE_FILE" >&2; exit 1)
-	up composition render $(XRM_COMPOSITION) $(EXAMPLES_DIR)/$(EXAMPLE_FILE)
+# Shorthand aliases
+render: render\:all
+validate: validate\:all
 
-render-individual:
-	$(MAKE) EXAMPLE_FILE=individual.yaml render-example
+# Single example render (usage: make render:minimal)
+render\:%:
+	@example="examples/foundations/$*.yaml"; \
+	if [ -f "$$example" ]; then \
+		echo "=== Rendering $$example ==="; \
+		up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example; \
+	else \
+		echo "Example $$example not found"; \
+		exit 1; \
+	fi
 
-render-enterprise:
-	$(MAKE) EXAMPLE_FILE=enterprise.yaml render-example
+# Single example validate (usage: make validate:minimal)
+validate\:%:
+	@example="examples/foundations/$*.yaml"; \
+	if [ -f "$$example" ]; then \
+		echo "=== Validating $$example ==="; \
+		up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example \
+			--include-full-xr --quiet | \
+			crossplane beta validate $(XRD_DIR) --error-on-missing-schemas -; \
+	else \
+		echo "Example $$example not found"; \
+		exit 1; \
+	fi
 
-render-import-existing:
-	$(MAKE) EXAMPLE_FILE=import-existing.yaml render-example
-
-render-minimal:
-	$(MAKE) EXAMPLE_FILE=minimal.yaml render-example
-
-# Multi-step rendering with observed resources
-# This composition uses XRDs (Organization, IdentityCenter, IPAM) which simplifies the reconciliation steps
-#
-# Step 1: Organization XRD ready (OUs and Accounts ready)
-# This triggers: ProviderConfigs, IPAM XRD (with resolved account/OU IDs), IdentityCenter XRD assignments
-render-enterprise-step-1:
-	up composition render $(XRM_COMPOSITION) $(EXAMPLES_DIR)/enterprise.yaml \
-		--observed-resources=examples/observed-resources/enterprise/steps/1/
-
-# Render all enterprise steps
-render-enterprise-all-steps: render-enterprise-step-1
-
-# Tests
 test:
-	up test run $(TESTS_DIR)/*
+	up test run $(RENDER_TESTS)
 
-# Validation
-validate: validate-individual validate-enterprise validate-import-existing validate-minimal validate-example
+e2e:
+	up test run $(E2E_TESTS) --e2e
 
-validate-individual:
-	up composition render $(XRM_COMPOSITION) $(EXAMPLES_DIR)/individual.yaml \
-		--include-full-xr --quiet | crossplane beta validate $(XRM_API_DIR) -
-
-validate-enterprise:
-	up composition render $(XRM_COMPOSITION) $(EXAMPLES_DIR)/enterprise.yaml \
-		--observed-resources=examples/observed-resources/enterprise/steps/1/ \
-		--include-full-xr --quiet | crossplane beta validate $(XRM_API_DIR) -
-
-validate-import-existing:
-	up composition render $(XRM_COMPOSITION) $(EXAMPLES_DIR)/import-existing.yaml \
-		--include-full-xr --quiet | crossplane beta validate $(XRM_API_DIR) -
-
-validate-minimal:
-	up composition render $(XRM_COMPOSITION) $(EXAMPLES_DIR)/minimal.yaml \
-		--include-full-xr --quiet | crossplane beta validate $(XRM_API_DIR) -
-
-validate-example:
-	crossplane beta validate $(XRM_API_DIR) $(EXAMPLES_DIR)
-
-# Publish
 publish:
 	@if [ -z "$(tag)" ]; then echo "Error: tag is not set. Usage: make publish tag=<version>"; exit 1; fi
 	up project build --push --tag $(tag)
 
-# Generate
 generate-definitions:
-	up xrd generate $(EXAMPLES_DIR)/enterprise.yaml
+	up xrd generate $(EXAMPLE_DEFAULT)
 
-# E2E tests
-e2e:
-	up test run $(TESTS_DIR)/e2etest* --e2e
-
-all: clean build render test validate
+generate-function:
+	up function generate --language=go-templating render $(COMPOSITION)

@@ -6,13 +6,11 @@
 # What you get:
 # - Identity Center with groups and permission sets for SSO access
 # - IPAM with IPv4 and IPv6 pools for dual-stack VPC allocation
-# - Ready for EKS Auto Mode with IPv6 support
 # - Simple setup without multi-account complexity
 #
 # After apply:
 # - SSO groups and permission sets are ready in Identity Center
 # - Create dual-stack VPCs with automatic CIDR allocation from status pool IDs
-# - Deploy EKS Auto Mode clusters with IPv6 networking
 #
 # Note: Account assignments require manual creation outside this Foundation
 # since there's no Organization to resolve account references. Create them
@@ -81,12 +79,12 @@ spec:
           - arn:aws:iam::aws:policy/ViewOnlyAccess
 
   # ---------------------------------------------------------------------------
-  # IPAM - Dual-Stack for EKS Auto Mode
+  # IPAM - Dual-Stack IP Address Management
   # ---------------------------------------------------------------------------
   # IP Address Manager for dual-stack VPC CIDR allocation.
-  # Includes both IPv4 and IPv6 pools for EKS Auto Mode clusters.
+  # Includes both IPv4 and IPv6 pools for modern workloads.
   #
-  # EKS Auto Mode IPv6 Benefits:
+  # IPv6 Benefits:
   # - Pods get native IPv6 addresses (no NAT overhead)
   # - Essentially unlimited pod IPs (/80 prefix = 281 trillion addresses per node)
   # - Better performance for modern workloads
@@ -102,7 +100,7 @@ spec:
       # ==========================================================================
       # IPv4 Pool
       # ==========================================================================
-      # Required for EKS control plane, node management, and legacy workloads
+      # Primary pool for VPC networking
       - name: ipv4
         addressFamily: ipv4
         region: us-east-1
@@ -113,12 +111,12 @@ spec:
         description: IPv4 pool for VPCs
 
       # ==========================================================================
-      # IPv6 Public Pool (Amazon-provided for EKS Auto Mode)
+      # IPv6 Public Pool (Amazon-provided GUA)
       # ==========================================================================
       # Internet-routable IPv6 addresses from Amazon's GUA space.
       # AWS allocates a /52 that can provide /56 blocks to VPCs.
       #
-      # For EKS Auto Mode:
+      # Benefits:
       # - Pods get native IPv6 addresses via prefix delegation
       # - Each node gets /80 prefixes (~65k addresses per node)
       # - No NAT, no IP exhaustion concerns
@@ -133,7 +131,7 @@ spec:
         allocationDefaultNetmaskLength: 56
         allocationMinNetmaskLength: 52
         allocationMaxNetmaskLength: 60
-        description: Public IPv6 pool (Amazon GUA for EKS Auto Mode)
+        description: Public IPv6 pool (Amazon GUA)
 
       # ==========================================================================
       # IPv6 Private Pool (ULA for internal microservices)

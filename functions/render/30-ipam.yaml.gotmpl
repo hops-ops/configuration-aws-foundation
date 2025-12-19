@@ -30,10 +30,20 @@ metadata:
   annotations:
     {{ setResourceNameAnnotation "ipam" }}
 spec:
-  managementPolicies: {{ toJson $managementPolicies }}
+  managementPolicies: {{ toJson $ipamManagementPolicies }}
   organizationName: {{ $name }}
   providerConfigName: {{ $ipamProviderConfig }}
   scope: {{ $ipamScope }}
+  {{- if $ipamConfig }}
+  ipam:
+    {{- if $ipamConfig.externalName }}
+    externalName: {{ $ipamConfig.externalName }}
+    {{- end }}
+    {{- if $ipamConfig.forProvider }}
+    forProvider:
+      {{- toYaml $ipamConfig.forProvider | nindent 6 }}
+    {{- end }}
+  {{- end }}
   {{- if $ipamDelegatedAdminAccount }}
   delegatedAdminAccountRef:
     name: {{ $ipamDelegatedAdminAccount }}
@@ -46,6 +56,12 @@ spec:
   pools:
     {{- range $pool := $ipamPools }}
     - name: {{ $pool.name }}
+      {{- if $pool.externalName }}
+      externalName: {{ $pool.externalName }}
+      {{- end }}
+      {{- if $pool.managementPolicies }}
+      managementPolicies: {{ toJson $pool.managementPolicies }}
+      {{- end }}
       {{- if $pool.addressFamily }}
       addressFamily: {{ $pool.addressFamily }}
       {{- end }}
