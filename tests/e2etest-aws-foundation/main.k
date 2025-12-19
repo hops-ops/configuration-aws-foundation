@@ -91,6 +91,14 @@ _foundation_manifest = {
             region: _region
         }
 
+        k8s: {
+            providerConfig: _foundation_name
+        }
+
+        memberAccountsProviderConfigs: {
+            managementPolicies: ["*"]
+        }
+
         tags: {
             "e2etest": "true"
             "managed-by": "crossplane"

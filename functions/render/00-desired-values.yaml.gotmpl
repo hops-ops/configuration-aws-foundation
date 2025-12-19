@@ -24,6 +24,11 @@
 {{- $k8s := $spec.k8s | default (dict) }}
 {{- $k8sProviderConfig := $k8s.providerConfig | default $name | default "default" }}
 
+# Member account ProviderConfigs - creates AWS ProviderConfigs for each account
+{{- $memberAccountsProviderConfigs := $spec.memberAccountsProviderConfigs | default (dict) }}
+{{- $memberAccountsProviderConfigsEnabled := $memberAccountsProviderConfigs.enabled | default true }}
+{{- $memberAccountsProviderConfigsManagementPolicies := $memberAccountsProviderConfigs.managementPolicies | default (list "*") }}
+
 {{- $defaultTags := dict "hops" "true" }}
 {{- $tags := merge $defaultTags ($spec.tags | default (dict)) }}
 

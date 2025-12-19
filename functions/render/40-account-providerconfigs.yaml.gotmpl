@@ -12,6 +12,7 @@
 # Uses the Kubernetes provider to create ProviderConfigs as Objects, which allows
 # for proper lifecycle management in e2e testing scenarios.
 
+{{- if $memberAccountsProviderConfigsEnabled }}
 {{- range $account := $accounts }}
   {{- $accountName := $account.name }}
   {{- $accountId := get $accountNameToId $accountName }}
@@ -27,6 +28,7 @@ metadata:
   annotations:
     {{ setResourceNameAnnotation $resourceName }}
 spec:
+  managementPolicies: {{ toJson $memberAccountsProviderConfigsManagementPolicies }}
   forProvider:
     manifest:
       apiVersion: aws.m.upbound.io/v1beta1
@@ -46,4 +48,5 @@ spec:
     kind: ProviderConfig
     name: {{ $k8sProviderConfig }}
   {{- end }}
+{{- end }}
 {{- end }}
