@@ -559,6 +559,94 @@ _items = [
                 }
             ]
         }
+    },
+
+    # =========================================================================
+    # Account ProviderConfigs - Management Policies Test
+    # =========================================================================
+    # Tests that memberAccountsProviderConfigs.managementPolicies is propagated
+    # to the generated Kubernetes Object resources
+
+    metav1alpha1.CompositionTest{
+        metadata.name: "test-foundation-account-providerconfigs-management-policies"
+        spec = {
+            compositionPath: "apis/foundations/composition.yaml"
+            xrdPath: "apis/foundations/definition.yaml"
+            timeoutSeconds: 120
+            validate: False
+            xr: {
+                apiVersion: "aws.hops.ops.com.ai/v1alpha1"
+                kind: "Foundation"
+                metadata: {
+                    name: "test-mgmt-policies"
+                    namespace: "default"
+                }
+                spec: {
+                    managementPolicies: ["Observe"]
+                    aws: {
+                        providerConfig: "default"
+                        region: "us-east-1"
+                    }
+                    memberAccountsProviderConfigs: {
+                        managementPolicies: ["*"]
+                    }
+                    organizationalUnits: [
+                        {path: "Test"}
+                    ]
+                    accounts: [
+                        {name: "test-account", email: "test@example.com", ou: "Test"}
+                    ]
+                }
+            }
+            observedResources: [
+                {
+                    apiVersion: "aws.hops.ops.com.ai/v1alpha1"
+                    kind: "Organization"
+                    metadata: {
+                        name: "test-mgmt-policies"
+                        annotations: {
+                            "gotemplating.fn.crossplane.io/composition-resource-name": "organization"
+                            "crossplane.io/composition-resource-name": "organization"
+                        }
+                    }
+                    status: {
+                        conditions: [{type: "Ready", status: "True"}]
+                        organization: {
+                            id: "o-test123"
+                            managementAccountId: "111111111111"
+                            rootId: "r-test"
+                        }
+                        accounts: [
+                            {name: "test-account", id: "222222222222", ready: True}
+                        ]
+                    }
+                }
+            ]
+            assertResources: [
+                {
+                    apiVersion: "kubernetes.m.crossplane.io/v1alpha1"
+                    kind: "Object"
+                    metadata: {
+                        name: "test-mgmt-policies-pc-test-account"
+                    }
+                    spec: {
+                        managementPolicies: ["*"]
+                        forProvider: {
+                            manifest: {
+                                metadata: {
+                                    name: "test-account"
+                                }
+                                spec: {
+                                    assumeRoleChain: [
+                                        {roleARN: "arn:aws:iam::222222222222:role/OrganizationAccountAccessRole"}
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        }
     }
 ]
 items = _items
