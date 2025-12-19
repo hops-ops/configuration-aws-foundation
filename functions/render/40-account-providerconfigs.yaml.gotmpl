@@ -35,6 +35,7 @@ spec:
       kind: ProviderConfig
       metadata:
         name: {{ $accountName }}
+        namespace: {{ $memberAccountsProviderConfigsNamespace }}
         labels:
           hops.ops.com.ai/managed: "true"
           hops.ops.com.ai/foundation: {{ $name }}

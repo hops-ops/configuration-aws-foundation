@@ -73,6 +73,10 @@ spec:
                       type: string
                       enum: ["*", Create, Observe, Update, Delete, LateInitialize]
                     default: ["*"]
+                  namespace:
+                    type: string
+                    description: Namespace where the member account ProviderConfigs will be created. Defaults to "default".
+                    default: "default"
 
               tags:
                 type: object

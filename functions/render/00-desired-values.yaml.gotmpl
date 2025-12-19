@@ -13,7 +13,6 @@
 {{- $spec := $xr.spec }}
 {{- $metadata := $xr.metadata }}
 {{- $name := $metadata.name }}
-{{- $namespace := $metadata.namespace | default "default" }}
 
 {{- $managementPolicies := $spec.managementPolicies | default (list "*") }}
 
@@ -28,6 +27,7 @@
 {{- $memberAccountsProviderConfigs := $spec.memberAccountsProviderConfigs | default (dict) }}
 {{- $memberAccountsProviderConfigsEnabled := $memberAccountsProviderConfigs.enabled | default true }}
 {{- $memberAccountsProviderConfigsManagementPolicies := $memberAccountsProviderConfigs.managementPolicies | default (list "*") }}
+{{- $memberAccountsProviderConfigsNamespace := $memberAccountsProviderConfigs.namespace | default "default" }}
 
 {{- $defaultTags := dict "hops" "true" }}
 {{- $tags := merge $defaultTags ($spec.tags | default (dict)) }}

@@ -26,7 +26,6 @@ apiVersion: aws.hops.ops.com.ai/v1alpha1
 kind: IPAM
 metadata:
   name: {{ $name }}-ipam
-  namespace: {{ $namespace }}
   annotations:
     {{ setResourceNameAnnotation "ipam" }}
 spec:

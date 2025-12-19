@@ -12,7 +12,6 @@ apiVersion: aws.hops.ops.com.ai/v1alpha1
 kind: IdentityCenter
 metadata:
   name: {{ $name }}-identity-center
-  namespace: {{ $namespace }}
   annotations:
     {{ setResourceNameAnnotation "identity-center" }}
 spec:
