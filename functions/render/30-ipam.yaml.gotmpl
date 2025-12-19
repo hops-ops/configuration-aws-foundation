@@ -34,15 +34,12 @@ spec:
   organizationName: {{ $name }}
   providerConfigName: {{ $ipamProviderConfig }}
   scope: {{ $ipamScope }}
-  {{- if $ipamConfig }}
-  ipam:
-    {{- if $ipamConfig.externalName }}
-    externalName: {{ $ipamConfig.externalName }}
-    {{- end }}
-    {{- if $ipamConfig.forProvider }}
-    forProvider:
-      {{- toYaml $ipamConfig.forProvider | nindent 6 }}
-    {{- end }}
+  {{- if $ipamExternalName }}
+  externalName: {{ $ipamExternalName }}
+  {{- end }}
+  {{- if $ipamForProvider }}
+  forProvider:
+    {{- toYaml $ipamForProvider | nindent 4 }}
   {{- end }}
   {{- if $ipamDelegatedAdminAccount }}
   delegatedAdminAccountRef:

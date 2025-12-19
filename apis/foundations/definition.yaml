@@ -245,6 +245,28 @@ spec:
                     description: AWS regions where IPAM can allocate CIDRs.
                     items:
                       type: string
+                  externalName:
+                    type: string
+                    description: |
+                      IPAM ID to adopt (e.g., ipam-0123456789abcdef0).
+                      When set, imports the existing IPAM instead of creating a new one.
+                  forProvider:
+                    type: object
+                    description: Override any forProvider field on the VPCIpam resource.
+                    x-kubernetes-preserve-unknown-fields: true
+                  managementPolicies:
+                    type: array
+                    description: |
+                      ManagementPolicies for the IPAM. Overrides spec.managementPolicies if set.
+                    items:
+                      type: string
+                      enum:
+                      - "*"
+                      - Create
+                      - Observe
+                      - Update
+                      - Delete
+                      - LateInitialize
                   pools:
                     type: array
                     description: |
