@@ -69,7 +69,7 @@ _ipam_external_name = "ipam-0573c7815d0a36e00"
 
 # Existing pools to import
 _ipv4_pool_external_name = "ipam-pool-0a82c73b97dc0dabb"
-_ipv4_cidr_external_name = "10.0.0.0/8_" + _ipv4_pool_external_name
+_ipv4_cidr_external_name = "10.0.0.0/8" + "_" + _ipv4_pool_external_name
 
 # =============================================================================
 # E2E Test Definition
@@ -226,6 +226,21 @@ _items = [
                                 name: "aws-creds"
                                 key: "creds"
                             }
+                        }
+                    }
+                },
+                # Kubernetes ProviderConfig for account ProviderConfig Objects
+                # Uses InjectedIdentity for in-cluster access
+                {
+                    apiVersion: "kubernetes.m.crossplane.io/v1alpha1"
+                    kind: "ProviderConfig"
+                    metadata: {
+                        name: _foundation_name
+                        namespace: "default"
+                    }
+                    spec: {
+                        credentials: {
+                            source: "InjectedIdentity"
                         }
                     }
                 }

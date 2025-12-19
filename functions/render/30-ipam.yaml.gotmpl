@@ -56,6 +56,9 @@ spec:
       {{- if $pool.externalName }}
       externalName: {{ $pool.externalName }}
       {{- end }}
+      {{- if $pool.cidrExternalName }}
+      cidrExternalName: {{ $pool.cidrExternalName }}
+      {{- end }}
       {{- if $pool.managementPolicies }}
       managementPolicies: {{ toJson $pool.managementPolicies }}
       {{- end }}
