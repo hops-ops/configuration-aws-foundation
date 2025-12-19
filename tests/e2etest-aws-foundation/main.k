@@ -8,10 +8,12 @@
 #
 # All persisted resources use managementPolicies without Delete to preserve them.
 # Prerequisite: Run aws-ipam e2e test first to create the IPAM resources.
+#
+# NOTE: Uses untyped dicts for manifest because Foundation XRD uses extensive
+# x-kubernetes-preserve-unknown-fields which KCL model generation doesn't support.
 
 import base64
 import file
-import models.ai.com.ops.hops.aws.v1alpha1 as hops
 import models.io.upbound.dev.meta.v1alpha1 as metav1alpha1
 
 _creds = file.read("secrets/aws-creds")
@@ -73,127 +75,130 @@ _ipv4_cidr_external_name = "10.0.0.0/8_" + _ipv4_pool_external_name
 # E2E Test Definition
 # =============================================================================
 
+# Foundation manifest as untyped dict (bypasses KCL schema validation for pass-through fields)
+_foundation_manifest = {
+    apiVersion: "aws.hops.ops.com.ai/v1alpha1"
+    kind: "Foundation"
+    metadata: {
+        name: _foundation_name
+        namespace: "default"
+    }
+    spec: {
+        managementPolicies: _observeOnly
+
+        aws: {
+            providerConfig: "default"
+            region: _region
+        }
+
+        tags: {
+            "e2etest": "true"
+            "managed-by": "crossplane"
+        }
+
+        # -----------------------------------------------------------------
+        # Organization - import existing org, OU, and account
+        # -----------------------------------------------------------------
+        organization: {
+            externalName: _existing_org_id
+            managementPolicies: _observeOnly
+            awsServiceAccessPrincipals: [
+                "iam.amazonaws.com"
+                "sso.amazonaws.com"
+                "account.amazonaws.com"
+            ]
+        }
+
+        organizationalUnits: [
+            {
+                path: _test_ou_path
+                externalName: _test_ou_external_name
+                managementPolicies: _observeOnly
+            }
+        ]
+
+        accounts: [
+            {
+                name: _test_account_name
+                email: _test_account_email
+                ou: _test_ou_path
+                externalName: _test_account_external_name
+                managementPolicies: _observeOnly
+            }
+        ]
+
+        # -----------------------------------------------------------------
+        # Identity Center - import existing
+        # -----------------------------------------------------------------
+        identityCenter: {
+            region: _region
+            identityStoreId: _identity_store_id
+            instanceArn: _instance_arn
+            sessionDuration: "PT4H"
+
+            groups: [
+                {
+                    name: _persistent_group_name
+                    displayName: "E2E Test Group"
+                    externalName: _persistent_group_id
+                    managementPolicies: _observeOnly
+                }
+            ]
+
+            permissionSets: [
+                {
+                    name: _persistent_permission_set_name
+                    description: "E2E testing read-only access"
+                    externalName: _persistent_permission_set_external_name
+                    managementPolicies: _observeOnly
+                    managedPolicies: [
+                        "arn:aws:iam::aws:policy/ReadOnlyAccess"
+                    ]
+                    assignToGroups: [_persistent_group_name]
+                    # Use account name - Foundation resolves to account ID
+                    assignToAccounts: [_test_account_name]
+                }
+            ]
+        }
+
+        # -----------------------------------------------------------------
+        # IPAM - import existing from aws-ipam e2e test
+        # -----------------------------------------------------------------
+        ipam: {
+            enabled: True
+            scope: "private"
+            homeRegion: _region
+            operatingRegions: [_region]
+            managementPolicies: _observeOnly
+            externalName: _ipam_external_name
+
+            pools: [
+                # Import existing IPv4 pool
+                {
+                    name: "ipv4"
+                    addressFamily: "ipv4"
+                    region: _region
+                    cidr: "10.0.0.0/8"
+                    managementPolicies: _observeOnly
+                    externalName: _ipv4_pool_external_name
+                    cidrExternalName: _ipv4_cidr_external_name
+                    allocationDefaultNetmaskLength: 20
+                    allocationMinNetmaskLength: 16
+                    allocationMaxNetmaskLength: 24
+                    description: "IPv4 pool for VPCs"
+                }
+            ]
+        }
+    }
+}
+
 _items = [
     metav1alpha1.E2ETest{
         metadata.name: ""
         spec = {
             crossplane.autoUpgrade.channel: "Rapid"
             defaultConditions: ["Ready"]
-            manifests: [
-                hops.Foundation{
-                    metadata: {
-                        name: _foundation_name
-                        namespace: "default"
-                    }
-                    spec: {
-                        managementPolicies: _observeOnly
-
-                        aws: {
-                            providerConfig: "default"
-                            region: _region
-                        }
-
-                        tags: {
-                            "e2etest": "true"
-                            "managed-by": "crossplane"
-                        }
-
-                        # -----------------------------------------------------------------
-                        # Organization - import existing org, OU, and account
-                        # -----------------------------------------------------------------
-                        organization: {
-                            externalName: _existing_org_id
-                            managementPolicies: _observeOnly
-                            awsServiceAccessPrincipals: [
-                                "iam.amazonaws.com"
-                                "sso.amazonaws.com"
-                                "account.amazonaws.com"
-                            ]
-                        }
-
-                        organizationalUnits: [
-                            {
-                                path: _test_ou_path
-                                externalName: _test_ou_external_name
-                                managementPolicies: _observeOnly
-                            }
-                        ]
-
-                        accounts: [
-                            {
-                                name: _test_account_name
-                                email: _test_account_email
-                                ou: _test_ou_path
-                                externalName: _test_account_external_name
-                                managementPolicies: _observeOnly
-                            }
-                        ]
-
-                        # -----------------------------------------------------------------
-                        # Identity Center - import existing
-                        # -----------------------------------------------------------------
-                        identityCenter: {
-                            region: _region
-                            identityStoreId: _identity_store_id
-                            instanceArn: _instance_arn
-                            sessionDuration: "PT4H"
-
-                            groups: [
-                                {
-                                    name: _persistent_group_name
-                                    displayName: "E2E Test Group"
-                                    externalName: _persistent_group_id
-                                    managementPolicies: _observeOnly
-                                }
-                            ]
-
-                            permissionSets: [
-                                {
-                                    name: _persistent_permission_set_name
-                                    description: "E2E testing read-only access"
-                                    externalName: _persistent_permission_set_external_name
-                                    managementPolicies: _observeOnly
-                                    managedPolicies: [
-                                        "arn:aws:iam::aws:policy/ReadOnlyAccess"
-                                    ]
-                                    assignToGroups: [_persistent_group_name]
-                                    # Use account name - Foundation resolves to account ID
-                                    assignToAccounts: [_test_account_name]
-                                }
-                            ]
-                        }
-
-                        # -----------------------------------------------------------------
-                        # IPAM - import existing from aws-ipam e2e test
-                        # -----------------------------------------------------------------
-                        ipam: {
-                            enabled: True
-                            scope: "private"
-                            homeRegion: _region
-                            operatingRegions: [_region]
-                            managementPolicies: _observeOnly
-                            externalName: _ipam_external_name
-
-                            pools: [
-                                # Import existing IPv4 pool
-                                {
-                                    name: "ipv4"
-                                    addressFamily: "ipv4"
-                                    region: _region
-                                    cidr: "10.0.0.0/8"
-                                    managementPolicies: _observeOnly
-                                    externalName: _ipv4_pool_external_name
-                                    cidrExternalName: _ipv4_cidr_external_name
-                                    allocationDefaultNetmaskLength: 20
-                                    allocationMinNetmaskLength: 16
-                                    allocationMaxNetmaskLength: 24
-                                    description: "IPv4 pool for VPCs"
-                                }
-                            ]
-                        }
-                    }
-                }
-            ]
+            manifests: [_foundation_manifest]
             extraResources: [
                 {
                     apiVersion: "v1"
