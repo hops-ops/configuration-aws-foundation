@@ -26,7 +26,7 @@ permissions:
 
 jobs:
   validate:
-    uses: unbounded-tech/workflows-crossplane/.github/workflows/validate.yaml@v1.2.0
+    uses: unbounded-tech/workflows-crossplane/.github/workflows/validate.yaml@v2.0.0
     with:
       examples: |
         [
@@ -40,21 +40,30 @@ jobs:
       error_on_missing_schemas: true
 
   test:
-    uses: unbounded-tech/workflows-crossplane/.github/workflows/test.yaml@v1.2.0
+    uses: unbounded-tech/workflows-crossplane/.github/workflows/test.yaml@v2.0.0
 
   e2e:
-    uses: unbounded-tech/workflows-crossplane/.github/workflows/e2e-aws.yaml@v1.2.0
+    uses: unbounded-tech/workflows-crossplane/.github/workflows/e2e.yaml@v2.0.0
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     with:
-      timeout-minutes: 90
+      aws: true
+      timeout-minutes: 33
+      debug-example-path: examples/foundations/minimal.yaml
+      debug-resource-types: |
+        [
+          "organizations.aws.hops.ops.com.ai",
+          "identitycenters.aws.hops.ops.com.ai",
+          "ipams.aws.hops.ops.com.ai",
+          "accounts.aws.hops.ops.com.ai"
+        ]
 
   publish:
     needs:
       - validate
       - test
-    uses: unbounded-tech/workflows-crossplane/.github/workflows/publish.yaml@v1.2.0
+    uses: unbounded-tech/workflows-crossplane/.github/workflows/publish.yaml@v2.0.0
     secrets: inherit
     with:
       tag: pr-${{ github.event.pull_request.number }}-${{ github.sha }}
