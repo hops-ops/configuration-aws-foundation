@@ -1,4 +1,4 @@
-name: promote
+name: on-version-tagged
 on:
   push:
     tags:
