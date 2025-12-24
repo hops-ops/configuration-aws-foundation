@@ -12,6 +12,11 @@
   },
   "packageRules": [
     {
+      "description": "Automerge minor and patch updates that pass all checks",
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
       "description": "Disable automatic updates for all hops-ops Docker images",
       "matchDatasources": [
         "docker"

@@ -32,7 +32,7 @@ jobs:
         [
           { "example": "examples/foundations/individual.yaml" },
           { "example": "examples/foundations/enterprise.yaml" },
-          { "example": "examples/foundations/enterprise.yaml", "observed_resources": "examples/observed-resources/enterprise/steps/1" },
+          { "example": "examples/foundations/enterprise.yaml", "observed_resources": "examples/test/mocks/observed-resources/enterprise/steps/1" },
           { "example": "examples/foundations/import-existing.yaml" },
           { "example": "examples/foundations/minimal.yaml" }
         ]

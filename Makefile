@@ -14,7 +14,7 @@ EXAMPLES := \
     examples/foundations/minimal.yaml:: \
     examples/foundations/individual.yaml:: \
     examples/foundations/enterprise.yaml:: \
-    examples/foundations/enterprise.yaml::examples/observed-resources/enterprise/steps/1 \
+    examples/foundations/enterprise.yaml::examples/test/mocks/observed-resources/enterprise/steps/1 \
     examples/foundations/import-existing.yaml::
 
 clean:
@@ -24,39 +24,69 @@ clean:
 build:
 	up project build
 
-# Render all examples
+# Render all examples (parallel execution, output shown per-job when complete)
 render\:all:
-	@for entry in $(EXAMPLES); do \
+	@tmpdir=$$(mktemp -d); \
+	pids=""; \
+	for entry in $(EXAMPLES); do \
 		example=$${entry%%::*}; \
 		observed=$${entry#*::}; \
-		if [ -n "$$observed" ]; then \
-			echo "=== Rendering $$example with observed-resources $$observed ==="; \
-			up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example --observed-resources=$$observed; \
-		else \
-			echo "=== Rendering $$example ==="; \
-			up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example; \
-		fi; \
-		echo ""; \
-	done
+		outfile="$$tmpdir/$$(echo $$entry | tr '/:' '__')"; \
+		( \
+			if [ -n "$$observed" ]; then \
+				echo "=== Rendering $$example with observed-resources $$observed ==="; \
+				up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example --observed-resources=$$observed; \
+			else \
+				echo "=== Rendering $$example ==="; \
+				up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example; \
+			fi; \
+			echo "" \
+		) > "$$outfile" 2>&1 & \
+		pids="$$pids $$!:$$outfile"; \
+	done; \
+	failed=0; \
+	for pair in $$pids; do \
+		pid=$${pair%%:*}; \
+		outfile=$${pair#*:}; \
+		if ! wait $$pid; then failed=1; fi; \
+		cat "$$outfile"; \
+	done; \
+	rm -rf "$$tmpdir"; \
+	exit $$failed
 
-# Validate all examples
+# Validate all examples (parallel execution, output shown per-job when complete)
 validate\:all:
-	@for entry in $(EXAMPLES); do \
+	@tmpdir=$$(mktemp -d); \
+	pids=""; \
+	for entry in $(EXAMPLES); do \
 		example=$${entry%%::*}; \
 		observed=$${entry#*::}; \
-		if [ -n "$$observed" ]; then \
-			echo "=== Validating $$example with observed-resources $$observed ==="; \
-			up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example \
-				--observed-resources=$$observed --include-full-xr --quiet | \
-				crossplane beta validate $(XRD_DIR) --error-on-missing-schemas -; \
-		else \
-			echo "=== Validating $$example ==="; \
-			up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example \
-				--include-full-xr --quiet | \
-				crossplane beta validate $(XRD_DIR) --error-on-missing-schemas -; \
-		fi; \
-		echo ""; \
-	done
+		outfile="$$tmpdir/$$(echo $$entry | tr '/:' '__')"; \
+		( \
+			if [ -n "$$observed" ]; then \
+				echo "=== Validating $$example with observed-resources $$observed ==="; \
+				up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example \
+					--observed-resources=$$observed --include-full-xr --quiet | \
+					crossplane beta validate $(XRD_DIR) --error-on-missing-schemas -; \
+			else \
+				echo "=== Validating $$example ==="; \
+				up composition render --xrd=$(DEFINITION) $(COMPOSITION) $$example \
+					--include-full-xr --quiet | \
+					crossplane beta validate $(XRD_DIR) --error-on-missing-schemas -; \
+			fi; \
+			echo "" \
+		) > "$$outfile" 2>&1 & \
+		pids="$$pids $$!:$$outfile"; \
+	done; \
+	failed=0; \
+	for pair in $$pids; do \
+		pid=$${pair%%:*}; \
+		outfile=$${pair#*:}; \
+		if ! wait $$pid; then failed=1; fi; \
+		cat "$$outfile"; \
+	done; \
+	rm -rf "$$tmpdir"; \
+	exit $$failed
 
 # Shorthand aliases
 render: render\:all
