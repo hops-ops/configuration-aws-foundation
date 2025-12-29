@@ -174,28 +174,32 @@ _foundation_manifest = {
         # -----------------------------------------------------------------
         ipam: {
             enabled: True
-            scope: "private"
-            homeRegion: _region
+            region: _region
             operatingRegions: [_region]
             managementPolicies: _observeOnly
             externalName: _ipam_external_name
 
-            pools: [
+            pools: {
                 # Import existing IPv4 pool
-                {
-                    name: "ipv4"
-                    addressFamily: "ipv4"
-                    region: _region
-                    cidr: "10.0.0.0/8"
-                    managementPolicies: _observeOnly
-                    externalName: _ipv4_pool_external_name
-                    cidrExternalName: _ipv4_cidr_external_name
-                    allocationDefaultNetmaskLength: 20
-                    allocationMinNetmaskLength: 16
-                    allocationMaxNetmaskLength: 24
-                    description: "IPv4 pool for VPCs"
-                }
-            ]
+                ipv4: [
+                    {
+                        name: "ipv4"
+                        locale: _region
+                        cidr: "10.0.0.0/8"
+                        managementPolicies: _observeOnly
+                        externalName: _ipv4_pool_external_name
+                        cidrExternalName: _ipv4_cidr_external_name
+                        allocations: {
+                            netmaskLength: {
+                                default: 20
+                                min: 16
+                                max: 24
+                            }
+                        }
+                        description: "IPv4 pool for VPCs"
+                    }
+                ]
+            }
         }
     }
 }
