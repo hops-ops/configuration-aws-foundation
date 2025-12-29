@@ -14,7 +14,7 @@
 # - 2 Delegated Administrators (SSO, IPAM)
 # - 3 Identity Store Groups
 # - 3 Permission Sets with account assignments
-# - 4 IPAM Pools with RAM sharing
+# - IPAM with IPv4 and IPv6 pools
 #
 # After apply, each account has a ProviderConfig ready:
 #   providerConfigRef:
@@ -185,19 +185,16 @@ spec:
   # ---------------------------------------------------------------------------
   # IPAM (IP Address Manager) - Dual-Stack Configuration
   # ---------------------------------------------------------------------------
-  # Centralized IP allocation with RAM sharing to OUs
-  # Supports both IPv4 and IPv6 for dual-stack workloads
+  # Centralized IP allocation for dual-stack workloads.
   #
   # Pool Architecture:
   # - IPv4 pools: Private scope, explicit CIDRs (10.x.x.x ranges)
-  # - IPv6 public pools: Amazon-provided addresses for internet-routable IPv6
-  # - IPv6 private pools: ULA ranges for internal-only IPv6 (optional)
+  # - IPv6 public pools: Amazon-provided GUA for internet-routable IPv6
+  # - IPv6 private pools: ULA ranges for internal-only IPv6
   #
   # For dual-stack VPCs, reference both an IPv4 pool ID and IPv6 pool ID
 
   ipam:
-    delegatedAdminAccount: acme-shared-services
-    scope: global-organization
     homeRegion: us-east-1
     operatingRegions:
       - us-east-1
@@ -221,8 +218,6 @@ spec:
         labels:
           environment: production
           region: us-east-1
-        ramShareTargets:
-          - ou: Workloads/Prod
 
       # Production IPv4 pool - US West 2
       - name: prod-ipv4-us-west-2
@@ -235,8 +230,6 @@ spec:
         labels:
           environment: production
           region: us-west-2
-        ramShareTargets:
-          - ou: Workloads/Prod
 
       # Non-production IPv4 pool
       - name: non-prod-ipv4-us-east-1
@@ -249,9 +242,6 @@ spec:
         description: Non-production IPv4 VPCs
         labels:
           environment: non-production
-        ramShareTargets:
-          - ou: Workloads/Non-Prod
-          - ou: Sandbox
 
       # Shared services IPv4 pool
       - name: shared-services-ipv4
@@ -262,8 +252,6 @@ spec:
         description: Shared infrastructure IPv4 VPCs
         labels:
           environment: shared
-        ramShareTargets:
-          - ou: Infrastructure
 
       # ==========================================================================
       # IPv6 Public Pools (Amazon-provided GUA)
@@ -283,7 +271,6 @@ spec:
         scope: public
         region: us-east-1
         locale: us-east-1
-        amazonProvidedIpv6CidrBlock: true
         publicIpSource: amazon
         awsService: ec2
         allocationDefaultNetmaskLength: 56
@@ -294,8 +281,6 @@ spec:
           environment: production
           region: us-east-1
           eks-ready: "true"
-        ramShareTargets:
-          - ou: Workloads/Prod
 
       # Production IPv6 pool - US West 2 (Amazon-provided)
       - name: prod-ipv6-us-west-2
@@ -303,7 +288,6 @@ spec:
         scope: public
         region: us-west-2
         locale: us-west-2
-        amazonProvidedIpv6CidrBlock: true
         publicIpSource: amazon
         awsService: ec2
         allocationDefaultNetmaskLength: 56
@@ -314,8 +298,6 @@ spec:
           environment: production
           region: us-west-2
           eks-ready: "true"
-        ramShareTargets:
-          - ou: Workloads/Prod
 
       # Non-production IPv6 pool (Amazon-provided)
       - name: non-prod-ipv6-us-east-1
@@ -323,7 +305,6 @@ spec:
         scope: public
         region: us-east-1
         locale: us-east-1
-        amazonProvidedIpv6CidrBlock: true
         publicIpSource: amazon
         awsService: ec2
         allocationDefaultNetmaskLength: 56
@@ -333,9 +314,6 @@ spec:
         labels:
           environment: non-production
           eks-ready: "true"
-        ramShareTargets:
-          - ou: Workloads/Non-Prod
-          - ou: Sandbox
 
       # Shared services IPv6 pool (Amazon-provided)
       - name: shared-services-ipv6
@@ -343,7 +321,6 @@ spec:
         scope: public
         region: us-east-1
         locale: us-east-1
-        amazonProvidedIpv6CidrBlock: true
         publicIpSource: amazon
         awsService: ec2
         allocationDefaultNetmaskLength: 56
@@ -351,8 +328,6 @@ spec:
         labels:
           environment: shared
           eks-ready: "true"
-        ramShareTargets:
-          - ou: Infrastructure
 
       # ==========================================================================
       # IPv6 Private Pools (Optional - ULA for internal-only traffic)
@@ -376,6 +351,3 @@ spec:
         labels:
           environment: internal
           internet-routable: "false"
-        ramShareTargets:
-          - ou: Infrastructure
-          - ou: Workloads/Prod

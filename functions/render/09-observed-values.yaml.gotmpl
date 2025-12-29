@@ -123,10 +123,12 @@
 {{- $ipamXRDReady := false }}
 {{- $observedIpamId := "Pending" }}
 {{- $observedIpamArn := "Pending" }}
-{{- $observedIpamScopeId := "Pending" }}
+{{- $observedIpamPrivateScopeId := "Pending" }}
+{{- $observedIpamPublicScopeId := "Pending" }}
 {{- $ipamPoolIdByName := dict }}
 {{- $ipamPoolArnByName := dict }}
 {{- $ipamPoolCidrByName := dict }}
+{{- $ipamPoolTypeByName := dict }}
 
 {{- with $ipamObservation }}
   {{- $resource := .resource | default (dict) }}
@@ -138,30 +140,61 @@
     {{- end }}
   {{- end }}
 
-  # Extract IPAM details
-  {{- $ipamStatus := $status.ipam | default (dict) }}
-  {{- $candidateId := $ipamStatus.id | default "" }}
+  # Extract IPAM details (new status structure)
+  {{- $candidateId := $status.id | default "" }}
   {{- if $candidateId }}
     {{- $observedIpamId = $candidateId }}
   {{- end }}
-  {{- $candidateArn := $ipamStatus.arn | default "" }}
+  {{- $candidateArn := $status.arn | default "" }}
   {{- if $candidateArn }}
     {{- $observedIpamArn = $candidateArn }}
   {{- end }}
-  {{- $scopeStatus := $ipamStatus.scope | default (dict) }}
-  {{- $candidateScopeId := $scopeStatus.id | default "" }}
-  {{- if $candidateScopeId }}
-    {{- $observedIpamScopeId = $candidateScopeId }}
+  {{- $candidatePrivateScopeId := $status.privateDefaultScopeId | default "" }}
+  {{- if $candidatePrivateScopeId }}
+    {{- $observedIpamPrivateScopeId = $candidatePrivateScopeId }}
+  {{- end }}
+  {{- $candidatePublicScopeId := $status.publicDefaultScopeId | default "" }}
+  {{- if $candidatePublicScopeId }}
+    {{- $observedIpamPublicScopeId = $candidatePublicScopeId }}
   {{- end }}
 
-  # Extract pool details
-  {{- $statusPools := $ipamStatus.pools | default (list) }}
-  {{- range $pool := $statusPools }}
+  # Extract pool details from new structure (pools.ipv4, pools.ipv6.ula, pools.ipv6.gua)
+  {{- $statusPools := $status.pools | default (dict) }}
+
+  # IPv4 pools
+  {{- $ipv4Pools := $statusPools.ipv4 | default (list) }}
+  {{- range $pool := $ipv4Pools }}
     {{- $poolName := $pool.name | default "" }}
     {{- if $poolName }}
       {{- $_ := set $ipamPoolIdByName $poolName ($pool.id | default "Pending") }}
       {{- $_ := set $ipamPoolArnByName $poolName ($pool.arn | default "Pending") }}
       {{- $_ := set $ipamPoolCidrByName $poolName ($pool.cidr | default "Pending") }}
+      {{- $_ := set $ipamPoolTypeByName $poolName "ipv4" }}
+    {{- end }}
+  {{- end }}
+
+  # IPv6 ULA pools
+  {{- $ipv6Status := $statusPools.ipv6 | default (dict) }}
+  {{- $ipv6UlaPools := $ipv6Status.ula | default (list) }}
+  {{- range $pool := $ipv6UlaPools }}
+    {{- $poolName := $pool.name | default "" }}
+    {{- if $poolName }}
+      {{- $_ := set $ipamPoolIdByName $poolName ($pool.id | default "Pending") }}
+      {{- $_ := set $ipamPoolArnByName $poolName ($pool.arn | default "Pending") }}
+      {{- $_ := set $ipamPoolCidrByName $poolName ($pool.cidr | default "Pending") }}
+      {{- $_ := set $ipamPoolTypeByName $poolName "ipv6-ula" }}
+    {{- end }}
+  {{- end }}
+
+  # IPv6 GUA pools
+  {{- $ipv6GuaPools := $ipv6Status.gua | default (list) }}
+  {{- range $pool := $ipv6GuaPools }}
+    {{- $poolName := $pool.name | default "" }}
+    {{- if $poolName }}
+      {{- $_ := set $ipamPoolIdByName $poolName ($pool.id | default "Pending") }}
+      {{- $_ := set $ipamPoolArnByName $poolName ($pool.arn | default "Pending") }}
+      {{- $_ := set $ipamPoolCidrByName $poolName ($pool.cidr | default "Pending") }}
+      {{- $_ := set $ipamPoolTypeByName $poolName "ipv6-gua" }}
     {{- end }}
   {{- end }}
 {{- end }}

@@ -18,8 +18,9 @@ spec:
   {{- if $organizationExternalName }}
   externalName: {{ $organizationExternalName | quote }}
   {{- end }}
-  aws:
-    providerConfig: {{ $awsProviderConfig }}
+  providerConfigRef:
+    name: {{ $awsProviderConfig }}
+    kind: ProviderConfig
   tags:
     {{- toYaml $tags | nindent 4 }}
   organization:

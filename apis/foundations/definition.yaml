@@ -251,16 +251,6 @@ spec:
                   providerConfig:
                     type: string
                     description: Override AWS provider config for IPAM.
-                  delegatedAdminAccount:
-                    type: string
-                    description: |
-                      Account name from spec.accounts[].name for IPAM delegation.
-                      Foundation resolves this to account ID.
-                  scope:
-                    type: string
-                    description: |
-                      IPAM scope. Defaults based on organization presence.
-                    enum: [private, delegated-organization, global-organization]
                   homeRegion:
                     type: string
                     description: AWS region hosting the IPAM instance.
@@ -294,7 +284,8 @@ spec:
                   pools:
                     type: array
                     description: |
-                      IPAM pools. ramShareTargets uses account/OU names (resolved by Foundation).
+                      IPAM pools. Use addressFamily (ipv4/ipv6) and scope (public/private)
+                      to categorize pools. Foundation transforms these to the IPAM API structure.
                     items:
                       type: object
                       required:
@@ -304,20 +295,16 @@ spec:
                         name:
                           type: string
                           description: Pool name for reference.
-                        ramShareTargets:
-                          type: array
+                        addressFamily:
+                          type: string
+                          description: Address family (ipv4 or ipv6). Defaults to ipv4.
+                          enum: [ipv4, ipv6]
+                        scope:
+                          type: string
                           description: |
-                            RAM share targets using account/OU names.
-                            Foundation resolves these to IDs.
-                          items:
-                            type: object
-                            properties:
-                              ou:
-                                type: string
-                                description: OU path from organizationalUnits.
-                              account:
-                                type: string
-                                description: Account name from spec.accounts[].name.
+                            Pool scope for IPv6 pools (public for GUA, private for ULA).
+                            Ignored for IPv4 pools.
+                          enum: [public, private]
 
           status:
             type: object

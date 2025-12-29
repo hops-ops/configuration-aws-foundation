@@ -18,7 +18,9 @@ spec:
   managementPolicies: {{ toJson $managementPolicies }}
   organizationName: {{ $name }}
   region: {{ $identityCenterRegion }}
-  providerConfigName: {{ $identityCenterProviderConfig }}
+  providerConfigRef:
+    name: {{ $identityCenterProviderConfig }}
+    kind: ProviderConfig
   identityStoreId: {{ $identityStoreId }}
   {{- if $identityCenterInstanceArn }}
   identityCenter:

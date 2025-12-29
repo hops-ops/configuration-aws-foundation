@@ -62,10 +62,6 @@
 {{- $ipamPools := $ipam.pools | default (list) }}
 {{- $ipamEnabled := $ipam.enabled | default (gt (len $ipamPools) 0) }}
 {{- $ipamProviderConfig := $ipam.providerConfig | default $awsProviderConfig }}
-{{- $ipamDelegatedAdminAccount := $ipam.delegatedAdminAccount | default "" }}
-# IPAM scope: use explicit value, or default based on organization presence
-{{- $ipamScopeDefault := ternary "delegated-organization" "private" $organizationEnabled }}
-{{- $ipamScope := $ipam.scope | default $ipamScopeDefault }}
 {{- $ipamHomeRegion := $ipam.homeRegion | default $awsRegion }}
 {{- $ipamOperatingRegions := $ipam.operatingRegions | default (list $ipamHomeRegion) }}
 {{- $ipamManagementPolicies := $ipam.managementPolicies | default $managementPolicies }}

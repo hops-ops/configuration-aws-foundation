@@ -3,24 +3,11 @@
 #
 # IPAM XRD
 # ========
-# Creates the aws-ipam XRD with pools and RAM shares.
-# RAM share targets use resolved OU and account IDs from the Organization XRD status.
+# Creates the aws-ipam XRD with pools.
+# Foundation abstracts pool types with addressFamily + scope fields, then
+# transforms them to the IPAM API structure (pools.ipv4, pools.ipv6.ula, pools.ipv6.gua).
 
 {{- if $ipamEnabled }}
-
-# Determine the delegated admin account ID for IPAM
-{{- $ipamDelegatedAdminAccountId := "" }}
-{{- if $ipamDelegatedAdminAccount }}
-  {{- $ipamDelegatedAdminAccountId = get $accountNameToId $ipamDelegatedAdminAccount }}
-{{- end }}
-
-# Only create IPAM if we have accounts ready (for delegated admin) or no org (standalone IPAM)
-{{- $canCreateIpam := true }}
-{{- if and $organizationEnabled $ipamDelegatedAdminAccount }}
-  {{- $canCreateIpam = and $ipamDelegatedAdminAccountId (ne $ipamDelegatedAdminAccountId "Pending") }}
-{{- end }}
-
-{{- if $canCreateIpam }}
 ---
 apiVersion: aws.hops.ops.com.ai/v1alpha1
 kind: IPAM
@@ -30,9 +17,9 @@ metadata:
     {{ setResourceNameAnnotation "ipam" }}
 spec:
   managementPolicies: {{ toJson $ipamManagementPolicies }}
-  organizationName: {{ $name }}
-  providerConfigName: {{ $ipamProviderConfig }}
-  scope: {{ $ipamScope }}
+  providerConfigRef:
+    name: {{ $ipamProviderConfig }}
+    kind: ProviderConfig
   {{- if $ipamExternalName }}
   externalName: {{ $ipamExternalName }}
   {{- end }}
@@ -40,90 +27,219 @@ spec:
   forProvider:
     {{- toYaml $ipamForProvider | nindent 4 }}
   {{- end }}
-  {{- if $ipamDelegatedAdminAccount }}
-  delegatedAdminAccountRef:
-    name: {{ $ipamDelegatedAdminAccount }}
-  {{- end }}
-  homeRegion: {{ $ipamHomeRegion }}
+  region: {{ $ipamHomeRegion }}
   {{- if gt (len $ipamOperatingRegions) 0 }}
   operatingRegions: {{ toJson $ipamOperatingRegions }}
   {{- end }}
-  {{- if gt (len $ipamPools) 0 }}
-  pools:
-    {{- range $pool := $ipamPools }}
-    - name: {{ $pool.name }}
-      {{- if $pool.externalName }}
-      externalName: {{ $pool.externalName }}
-      {{- end }}
-      {{- if $pool.cidrExternalName }}
-      cidrExternalName: {{ $pool.cidrExternalName }}
-      {{- end }}
-      {{- if $pool.managementPolicies }}
-      managementPolicies: {{ toJson $pool.managementPolicies }}
-      {{- end }}
-      {{- if $pool.addressFamily }}
-      addressFamily: {{ $pool.addressFamily }}
-      {{- end }}
-      {{- if $pool.cidr }}
-      cidr: {{ $pool.cidr }}
-      {{- end }}
-      {{- if $pool.amazonProvidedIpv6CidrBlock }}
-      amazonProvidedIpv6CidrBlock: {{ $pool.amazonProvidedIpv6CidrBlock }}
-      {{- end }}
-      {{- if $pool.publicIpSource }}
-      publicIpSource: {{ $pool.publicIpSource }}
-      {{- end }}
-      {{- if $pool.awsService }}
-      awsService: {{ $pool.awsService }}
-      {{- end }}
-      {{- if $pool.scope }}
-      scope: {{ $pool.scope }}
-      {{- end }}
-      {{- if $pool.region }}
-      region: {{ $pool.region }}
-      {{- end }}
-      {{- if $pool.locale }}
-      locale: {{ $pool.locale }}
-      {{- end }}
-      {{- if $pool.description }}
-      description: {{ $pool.description }}
-      {{- end }}
-      {{- if $pool.allocationDefaultNetmaskLength }}
-      allocationDefaultNetmaskLength: {{ $pool.allocationDefaultNetmaskLength }}
-      {{- end }}
-      {{- if $pool.allocationMinNetmaskLength }}
-      allocationMinNetmaskLength: {{ $pool.allocationMinNetmaskLength }}
-      {{- end }}
-      {{- if $pool.allocationMaxNetmaskLength }}
-      allocationMaxNetmaskLength: {{ $pool.allocationMaxNetmaskLength }}
-      {{- end }}
-      {{- if $pool.labels }}
-      labels:
-        {{- toYaml $pool.labels | nindent 8 }}
-      {{- end }}
-      {{- if $pool.tags }}
-      tags:
-        {{- toYaml $pool.tags | nindent 8 }}
-      {{- end }}
-      # Resolve RAM share targets to IDs
-      {{- $poolShareTargets := $pool.ramShareTargets | default (list) }}
-      {{- if gt (len $poolShareTargets) 0 }}
-      ramShareTargets:
-        {{- range $target := $poolShareTargets }}
-        {{- if $target.ou }}
-          {{- $ouId := get $ouPathToId $target.ou }}
-          {{- if and $ouId (ne $ouId "Pending") }}
-        - ou: {{ $ouId }}
-          {{- end }}
-        {{- else if $target.account }}
-          {{- $accountId := get $accountNameToId $target.account }}
-          {{- if and $accountId (ne $accountId "Pending") }}
-        - account: {{ $accountId }}
-          {{- end }}
-        {{- end }}
-        {{- end }}
+  {{- /* Separate pools by type: ipv4, ipv6-ula (private), ipv6-gua (public) */}}
+  {{- $ipv4Pools := list }}
+  {{- $ipv6UlaPools := list }}
+  {{- $ipv6GuaPools := list }}
+  {{- range $pool := $ipamPools }}
+    {{- $af := $pool.addressFamily | default "ipv4" }}
+    {{- $poolScope := $pool.scope | default "private" }}
+    {{- if eq $af "ipv4" }}
+      {{- $ipv4Pools = append $ipv4Pools $pool }}
+    {{- else if eq $af "ipv6" }}
+      {{- if eq $poolScope "public" }}
+        {{- $ipv6GuaPools = append $ipv6GuaPools $pool }}
+      {{- else }}
+        {{- $ipv6UlaPools = append $ipv6UlaPools $pool }}
       {{- end }}
     {{- end }}
   {{- end }}
-{{- end }}
+  pools:
+    {{- if gt (len $ipv4Pools) 0 }}
+    ipv4:
+      {{- range $pool := $ipv4Pools }}
+      - name: {{ $pool.name }}
+        {{- if $pool.sourcePoolRef }}
+        sourcePoolRef: {{ $pool.sourcePoolRef }}
+        {{- end }}
+        {{- if $pool.externalName }}
+        externalName: {{ $pool.externalName }}
+        {{- end }}
+        {{- if $pool.cidrExternalName }}
+        cidrExternalName: {{ $pool.cidrExternalName }}
+        {{- end }}
+        {{- if $pool.managementPolicies }}
+        managementPolicies: {{ toJson $pool.managementPolicies }}
+        {{- end }}
+        {{- if $pool.forProvider }}
+        forProvider:
+          {{- toYaml $pool.forProvider | nindent 10 }}
+        {{- end }}
+        {{- if $pool.cidr }}
+        cidr: {{ $pool.cidr }}
+        {{- end }}
+        {{- if $pool.netmaskLength }}
+        netmaskLength: {{ $pool.netmaskLength }}
+        {{- end }}
+        {{- if $pool.scopeRef }}
+        scopeRef: {{ $pool.scopeRef }}
+        {{- end }}
+        {{- if $pool.region }}
+        region: {{ $pool.region }}
+        {{- end }}
+        {{- if $pool.locale }}
+        locale: {{ $pool.locale }}
+        {{- end }}
+        {{- if $pool.description }}
+        description: {{ $pool.description }}
+        {{- end }}
+        {{- /* Transform allocation netmask fields to nested structure */}}
+        {{- $hasAllocations := or $pool.allocationDefaultNetmaskLength $pool.allocationMinNetmaskLength $pool.allocationMaxNetmaskLength }}
+        {{- if $hasAllocations }}
+        allocations:
+          netmaskLength:
+            {{- if $pool.allocationDefaultNetmaskLength }}
+            default: {{ $pool.allocationDefaultNetmaskLength }}
+            {{- end }}
+            {{- if $pool.allocationMinNetmaskLength }}
+            min: {{ $pool.allocationMinNetmaskLength }}
+            {{- end }}
+            {{- if $pool.allocationMaxNetmaskLength }}
+            max: {{ $pool.allocationMaxNetmaskLength }}
+            {{- end }}
+        {{- end }}
+        {{- if $pool.labels }}
+        labels:
+          {{- toYaml $pool.labels | nindent 10 }}
+        {{- end }}
+        {{- if $pool.tags }}
+        tags:
+          {{- toYaml $pool.tags | nindent 10 }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- if or (gt (len $ipv6UlaPools) 0) (gt (len $ipv6GuaPools) 0) }}
+    ipv6:
+      {{- if gt (len $ipv6UlaPools) 0 }}
+      ula:
+        {{- range $pool := $ipv6UlaPools }}
+        - name: {{ $pool.name }}
+          {{- if $pool.sourcePoolRef }}
+          sourcePoolRef: {{ $pool.sourcePoolRef }}
+          {{- end }}
+          {{- if $pool.externalName }}
+          externalName: {{ $pool.externalName }}
+          {{- end }}
+          {{- if $pool.cidrExternalName }}
+          cidrExternalName: {{ $pool.cidrExternalName }}
+          {{- end }}
+          {{- if $pool.managementPolicies }}
+          managementPolicies: {{ toJson $pool.managementPolicies }}
+          {{- end }}
+          {{- if $pool.forProvider }}
+          forProvider:
+            {{- toYaml $pool.forProvider | nindent 12 }}
+          {{- end }}
+          {{- if $pool.cidr }}
+          cidr: {{ $pool.cidr }}
+          {{- end }}
+          {{- if $pool.netmaskLength }}
+          netmaskLength: {{ $pool.netmaskLength }}
+          {{- end }}
+          {{- if $pool.scopeRef }}
+          scopeRef: {{ $pool.scopeRef }}
+          {{- end }}
+          {{- if $pool.region }}
+          region: {{ $pool.region }}
+          {{- end }}
+          {{- if $pool.locale }}
+          locale: {{ $pool.locale }}
+          {{- end }}
+          {{- if $pool.description }}
+          description: {{ $pool.description }}
+          {{- end }}
+          {{- $hasAllocations := or $pool.allocationDefaultNetmaskLength $pool.allocationMinNetmaskLength $pool.allocationMaxNetmaskLength }}
+          {{- if $hasAllocations }}
+          allocations:
+            netmaskLength:
+              {{- if $pool.allocationDefaultNetmaskLength }}
+              default: {{ $pool.allocationDefaultNetmaskLength }}
+              {{- end }}
+              {{- if $pool.allocationMinNetmaskLength }}
+              min: {{ $pool.allocationMinNetmaskLength }}
+              {{- end }}
+              {{- if $pool.allocationMaxNetmaskLength }}
+              max: {{ $pool.allocationMaxNetmaskLength }}
+              {{- end }}
+          {{- end }}
+          {{- if $pool.labels }}
+          labels:
+            {{- toYaml $pool.labels | nindent 12 }}
+          {{- end }}
+          {{- if $pool.tags }}
+          tags:
+            {{- toYaml $pool.tags | nindent 12 }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- if gt (len $ipv6GuaPools) 0 }}
+      gua:
+        {{- range $pool := $ipv6GuaPools }}
+        - name: {{ $pool.name }}
+          {{- if $pool.sourcePoolRef }}
+          sourcePoolRef: {{ $pool.sourcePoolRef }}
+          {{- end }}
+          {{- if $pool.externalName }}
+          externalName: {{ $pool.externalName }}
+          {{- end }}
+          {{- if $pool.cidrExternalName }}
+          cidrExternalName: {{ $pool.cidrExternalName }}
+          {{- end }}
+          {{- if $pool.managementPolicies }}
+          managementPolicies: {{ toJson $pool.managementPolicies }}
+          {{- end }}
+          {{- if $pool.forProvider }}
+          forProvider:
+            {{- toYaml $pool.forProvider | nindent 12 }}
+          {{- end }}
+          {{- /* GUA pools use netmaskLength for Amazon-provided CIDR */}}
+          {{- if $pool.netmaskLength }}
+          netmaskLength: {{ $pool.netmaskLength }}
+          {{- else }}
+          netmaskLength: 52
+          {{- end }}
+          {{- if $pool.publicIpSource }}
+          publicIpSource: {{ $pool.publicIpSource }}
+          {{- end }}
+          {{- if $pool.awsService }}
+          awsService: {{ $pool.awsService }}
+          {{- end }}
+          {{- if $pool.region }}
+          region: {{ $pool.region }}
+          {{- end }}
+          {{- if $pool.locale }}
+          locale: {{ $pool.locale }}
+          {{- end }}
+          {{- if $pool.description }}
+          description: {{ $pool.description }}
+          {{- end }}
+          {{- $hasAllocations := or $pool.allocationDefaultNetmaskLength $pool.allocationMinNetmaskLength $pool.allocationMaxNetmaskLength }}
+          {{- if $hasAllocations }}
+          allocations:
+            netmaskLength:
+              {{- if $pool.allocationDefaultNetmaskLength }}
+              default: {{ $pool.allocationDefaultNetmaskLength }}
+              {{- end }}
+              {{- if $pool.allocationMinNetmaskLength }}
+              min: {{ $pool.allocationMinNetmaskLength }}
+              {{- end }}
+              {{- if $pool.allocationMaxNetmaskLength }}
+              max: {{ $pool.allocationMaxNetmaskLength }}
+              {{- end }}
+          {{- end }}
+          {{- if $pool.labels }}
+          labels:
+            {{- toYaml $pool.labels | nindent 12 }}
+          {{- end }}
+          {{- if $pool.tags }}
+          tags:
+            {{- toYaml $pool.tags | nindent 12 }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
 {{- end }}

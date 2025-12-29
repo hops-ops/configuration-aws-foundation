@@ -91,7 +91,6 @@ spec:
   # - Prefix delegation scales automatically
 
   ipam:
-    scope: private  # Single-account IPAM (no organization delegation)
     homeRegion: us-east-1
     operatingRegions:
       - us-east-1
@@ -125,7 +124,6 @@ spec:
         scope: public
         region: us-east-1
         locale: us-east-1
-        amazonProvidedIpv6CidrBlock: true
         publicIpSource: amazon
         awsService: ec2
         allocationDefaultNetmaskLength: 56

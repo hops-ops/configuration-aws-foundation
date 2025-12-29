@@ -75,7 +75,8 @@ status:
     ready: {{ $ipamXRDReady }}
     id: {{ $observedIpamId }}
     arn: {{ $observedIpamArn }}
-    privateScopeId: {{ $observedIpamScopeId }}
+    privateDefaultScopeId: {{ $observedIpamPrivateScopeId }}
+    publicDefaultScopeId: {{ $observedIpamPublicScopeId }}
     region: {{ $ipamHomeRegion }}
     {{- if gt (len $ipamPools) 0 }}
     pools:
@@ -84,11 +85,9 @@ status:
         {{- $poolId := get $ipamPoolIdByName $poolName | default "Pending" }}
         {{- $poolArn := get $ipamPoolArnByName $poolName | default "Pending" }}
         {{- $poolCidr := get $ipamPoolCidrByName $poolName | default "Pending" }}
-        {{- $addressFamily := $pool.addressFamily | default "ipv4" }}
-        {{- $poolScope := $pool.scope | default "private" }}
+        {{- $poolType := get $ipamPoolTypeByName $poolName | default "ipv4" }}
       - name: {{ $poolName }}
-        addressFamily: {{ $addressFamily }}
-        scope: {{ $poolScope }}
+        type: {{ $poolType }}
         id: {{ $poolId }}
         arn: {{ $poolArn }}
         cidr: {{ $poolCidr }}
