@@ -82,7 +82,7 @@ spec:
   # IPAM - Dual-Stack IP Address Management
   # ---------------------------------------------------------------------------
   # IP Address Manager for dual-stack VPC CIDR allocation.
-  # Includes both IPv4 and IPv6 pools for modern workloads.
+  # Pool structure matches IPAM XRD: pools.ipv4[], pools.ipv6.gua[], pools.ipv6.ula[]
   #
   # IPv6 Benefits:
   # - Pods get native IPv6 addresses (no NAT overhead)
@@ -91,60 +91,60 @@ spec:
   # - Prefix delegation scales automatically
 
   ipam:
-    homeRegion: us-east-1
+    region: us-east-1
     operatingRegions:
       - us-east-1
 
     pools:
       # ==========================================================================
-      # IPv4 Pool
+      # IPv4 Pools
       # ==========================================================================
-      # Primary pool for VPC networking
-      - name: ipv4
-        addressFamily: ipv4
-        region: us-east-1
-        cidr: 10.0.0.0/8
-        allocationDefaultNetmaskLength: 20  # /20 = 4096 IPs per VPC
-        allocationMinNetmaskLength: 16      # Allow up to /16
-        allocationMaxNetmaskLength: 24      # Minimum /24
-        description: IPv4 pool for VPCs
+      ipv4:
+        - name: ipv4
+          region: us-east-1
+          cidr: 10.0.0.0/8
+          allocations:
+            netmaskLength:
+              default: 20  # /20 = 4096 IPs per VPC
+              min: 16      # Allow up to /16
+              max: 24      # Minimum /24
+          description: IPv4 pool for VPCs
 
       # ==========================================================================
-      # IPv6 Public Pool (Amazon-provided GUA)
+      # IPv6 Pools
       # ==========================================================================
-      # Internet-routable IPv6 addresses from Amazon's GUA space.
-      # AWS allocates a /52 that can provide /56 blocks to VPCs.
-      #
-      # Benefits:
-      # - Pods get native IPv6 addresses via prefix delegation
-      # - Each node gets /80 prefixes (~65k addresses per node)
-      # - No NAT, no IP exhaustion concerns
-      - name: ipv6-public
-        addressFamily: ipv6
-        scope: public
-        region: us-east-1
-        locale: us-east-1
-        publicIpSource: amazon
-        awsService: ec2
-        allocationDefaultNetmaskLength: 56
-        allocationMinNetmaskLength: 52
-        allocationMaxNetmaskLength: 60
-        description: Public IPv6 pool (Amazon GUA)
+      ipv6:
+        # GUA pools - Amazon-provided, internet-routable
+        # AWS allocates a /52 that can provide /56 blocks to VPCs.
+        # Benefits:
+        # - Pods get native IPv6 addresses via prefix delegation
+        # - Each node gets /80 prefixes (~65k addresses per node)
+        # - No NAT, no IP exhaustion concerns
+        gua:
+          - name: ipv6-public
+            region: us-east-1
+            locale: us-east-1
+            netmaskLength: 52
+            publicIpSource: amazon
+            awsService: ec2
+            allocations:
+              netmaskLength:
+                default: 56
+                min: 52
+                max: 60
+            description: Public IPv6 pool (Amazon GUA)
 
-      # ==========================================================================
-      # IPv6 Private Pool (ULA for internal microservices)
-      # ==========================================================================
-      # Non-routable IPv6 for internal service-to-service traffic.
-      # Uses ULA (fd00::/8) - stays within your network.
-      #
-      # Use cases: databases, service mesh, backend APIs
-      - name: ipv6-private
-        addressFamily: ipv6
-        scope: private
-        region: us-east-1
-        locale: us-east-1
-        cidr: fd00:my:app::/48
-        allocationDefaultNetmaskLength: 56
-        allocationMinNetmaskLength: 48
-        allocationMaxNetmaskLength: 64
-        description: Private IPv6 pool (ULA for internal microservices)
+        # ULA pools - Private, not internet-routable
+        # Uses ULA (fd00::/8) - stays within your network.
+        # Use cases: databases, service mesh, backend APIs
+        ula:
+          - name: ipv6-private
+            region: us-east-1
+            locale: us-east-1
+            cidr: fd00:my:app::/48
+            allocations:
+              netmaskLength:
+                default: 56
+                min: 48
+                max: 64
+            description: Private IPv6 pool (ULA for internal microservices)

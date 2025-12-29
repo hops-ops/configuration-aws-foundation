@@ -57,13 +57,18 @@
 {{- $identityCenterUsers := $identityCenter.users | default (list) }}
 {{- $identityCenterPermissionSets := $identityCenter.permissionSets | default (list) }}
 
-# IPAM configuration
+# IPAM configuration - pools structure passed directly to IPAM XRD
 {{- $ipam := $spec.ipam | default (dict) }}
-{{- $ipamPools := $ipam.pools | default (list) }}
-{{- $ipamEnabled := $ipam.enabled | default (gt (len $ipamPools) 0) }}
+{{- $ipamPools := $ipam.pools | default (dict) }}
+{{- $ipv4Pools := $ipamPools.ipv4 | default (list) }}
+{{- $ipv6Pools := $ipamPools.ipv6 | default (dict) }}
+{{- $ipv6GuaPools := $ipv6Pools.gua | default (list) }}
+{{- $ipv6UlaPools := $ipv6Pools.ula | default (list) }}
+{{- $hasAnyPools := or (gt (len $ipv4Pools) 0) (gt (len $ipv6GuaPools) 0) (gt (len $ipv6UlaPools) 0) }}
+{{- $ipamEnabled := $ipam.enabled | default $hasAnyPools }}
 {{- $ipamProviderConfig := $ipam.providerConfig | default $awsProviderConfig }}
-{{- $ipamHomeRegion := $ipam.homeRegion | default $awsRegion }}
-{{- $ipamOperatingRegions := $ipam.operatingRegions | default (list $ipamHomeRegion) }}
+{{- $ipamRegion := $ipam.region | default $awsRegion }}
+{{- $ipamOperatingRegions := $ipam.operatingRegions | default (list $ipamRegion) }}
 {{- $ipamManagementPolicies := $ipam.managementPolicies | default $managementPolicies }}
 # IPAM resource settings - passed directly to IPAM XRD spec
 {{- $ipamExternalName := $ipam.externalName | default "" }}

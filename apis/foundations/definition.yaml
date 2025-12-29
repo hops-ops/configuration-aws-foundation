@@ -242,7 +242,9 @@ spec:
               # =============================================================================
               ipam:
                 type: object
-                description: AWS VPC IP Address Manager configuration. Passed to IPAM XRD.
+                description: |
+                  AWS VPC IP Address Manager configuration. Passed directly to IPAM XRD.
+                  Pool structure matches the IPAM API: pools.ipv4[], pools.ipv6.gua[], pools.ipv6.ula[].
                 x-kubernetes-preserve-unknown-fields: true
                 properties:
                   enabled:
@@ -251,7 +253,7 @@ spec:
                   providerConfig:
                     type: string
                     description: Override AWS provider config for IPAM.
-                  homeRegion:
+                  region:
                     type: string
                     description: AWS region hosting the IPAM instance.
                   operatingRegions:
@@ -282,29 +284,50 @@ spec:
                       - Delete
                       - LateInitialize
                   pools:
-                    type: array
+                    type: object
                     description: |
-                      IPAM pools. Use addressFamily (ipv4/ipv6) and scope (public/private)
-                      to categorize pools. Foundation transforms these to the IPAM API structure.
-                    items:
-                      type: object
-                      required:
-                      - name
-                      x-kubernetes-preserve-unknown-fields: true
-                      properties:
-                        name:
-                          type: string
-                          description: Pool name for reference.
-                        addressFamily:
-                          type: string
-                          description: Address family (ipv4 or ipv6). Defaults to ipv4.
-                          enum: [ipv4, ipv6]
-                        scope:
-                          type: string
-                          description: |
-                            Pool scope for IPv6 pools (public for GUA, private for ULA).
-                            Ignored for IPv4 pools.
-                          enum: [public, private]
+                      IPAM pools organized by type. Structure matches IPAM XRD directly.
+                    properties:
+                      ipv4:
+                        type: array
+                        description: IPv4 pools for private address allocation.
+                        items:
+                          type: object
+                          required:
+                          - name
+                          x-kubernetes-preserve-unknown-fields: true
+                          properties:
+                            name:
+                              type: string
+                              description: Pool name for reference.
+                      ipv6:
+                        type: object
+                        description: IPv6 pools organized by type.
+                        properties:
+                          gua:
+                            type: array
+                            description: Global Unicast Address pools (Amazon-provided, internet-routable).
+                            items:
+                              type: object
+                              required:
+                              - name
+                              x-kubernetes-preserve-unknown-fields: true
+                              properties:
+                                name:
+                                  type: string
+                                  description: Pool name for reference.
+                          ula:
+                            type: array
+                            description: Unique Local Address pools (private, not internet-routable).
+                            items:
+                              type: object
+                              required:
+                              - name
+                              x-kubernetes-preserve-unknown-fields: true
+                              properties:
+                                name:
+                                  type: string
+                                  description: Pool name for reference.
 
           status:
             type: object

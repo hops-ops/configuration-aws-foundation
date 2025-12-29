@@ -77,17 +77,41 @@ status:
     arn: {{ $observedIpamArn }}
     privateDefaultScopeId: {{ $observedIpamPrivateScopeId }}
     publicDefaultScopeId: {{ $observedIpamPublicScopeId }}
-    region: {{ $ipamHomeRegion }}
-    {{- if gt (len $ipamPools) 0 }}
+    region: {{ $ipamRegion }}
+    {{- if $hasAnyPools }}
     pools:
-      {{- range $pool := $ipamPools }}
+      {{- /* IPv4 pools */}}
+      {{- range $pool := $ipv4Pools }}
         {{- $poolName := $pool.name }}
         {{- $poolId := get $ipamPoolIdByName $poolName | default "Pending" }}
         {{- $poolArn := get $ipamPoolArnByName $poolName | default "Pending" }}
         {{- $poolCidr := get $ipamPoolCidrByName $poolName | default "Pending" }}
-        {{- $poolType := get $ipamPoolTypeByName $poolName | default "ipv4" }}
       - name: {{ $poolName }}
-        type: {{ $poolType }}
+        type: ipv4
+        id: {{ $poolId }}
+        arn: {{ $poolArn }}
+        cidr: {{ $poolCidr }}
+      {{- end }}
+      {{- /* IPv6 GUA pools */}}
+      {{- range $pool := $ipv6GuaPools }}
+        {{- $poolName := $pool.name }}
+        {{- $poolId := get $ipamPoolIdByName $poolName | default "Pending" }}
+        {{- $poolArn := get $ipamPoolArnByName $poolName | default "Pending" }}
+        {{- $poolCidr := get $ipamPoolCidrByName $poolName | default "Pending" }}
+      - name: {{ $poolName }}
+        type: ipv6-gua
+        id: {{ $poolId }}
+        arn: {{ $poolArn }}
+        cidr: {{ $poolCidr }}
+      {{- end }}
+      {{- /* IPv6 ULA pools */}}
+      {{- range $pool := $ipv6UlaPools }}
+        {{- $poolName := $pool.name }}
+        {{- $poolId := get $ipamPoolIdByName $poolName | default "Pending" }}
+        {{- $poolArn := get $ipamPoolArnByName $poolName | default "Pending" }}
+        {{- $poolCidr := get $ipamPoolCidrByName $poolName | default "Pending" }}
+      - name: {{ $poolName }}
+        type: ipv6-ula
         id: {{ $poolId }}
         arn: {{ $poolArn }}
         cidr: {{ $poolCidr }}

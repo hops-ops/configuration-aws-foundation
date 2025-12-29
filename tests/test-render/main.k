@@ -86,7 +86,7 @@ _items = [
             timeoutSeconds: 120
             validate: True
             assertResources: [
-                # IPAM XRD - asserts the Foundation creates the IPAM XRD with new pool structure
+                # IPAM XRD - pools passed through directly with nested structure
                 {
                     apiVersion: "aws.hops.ops.com.ai/v1alpha1"
                     kind: "IPAM"
@@ -335,9 +335,9 @@ _items = [
     },
 
     # =========================================================================
-    # Enterprise Example - IPAM with new pool structure
+    # Enterprise Example - IPAM with nested pool structure
     # =========================================================================
-    # Tests that IPAM XRD uses the new pools.ipv4/ipv6.gua/ipv6.ula structure
+    # Tests that IPAM XRD uses pools.ipv4[], pools.ipv6.gua[], pools.ipv6.ula[]
 
     metav1alpha1.CompositionTest{
         metadata.name: "test-foundation-enterprise-ipam-pool-structure"
@@ -348,7 +348,7 @@ _items = [
             timeoutSeconds: 120
             validate: True
             assertResources: [
-                # IPAM XRD with new pool structure
+                # IPAM XRD with nested pool structure
                 {
                     apiVersion: "aws.hops.ops.com.ai/v1alpha1"
                     kind: "IPAM"

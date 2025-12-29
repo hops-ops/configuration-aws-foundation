@@ -186,16 +186,12 @@ spec:
   # IPAM (IP Address Manager) - Dual-Stack Configuration
   # ---------------------------------------------------------------------------
   # Centralized IP allocation for dual-stack workloads.
-  #
-  # Pool Architecture:
-  # - IPv4 pools: Private scope, explicit CIDRs (10.x.x.x ranges)
-  # - IPv6 public pools: Amazon-provided GUA for internet-routable IPv6
-  # - IPv6 private pools: ULA ranges for internal-only IPv6
+  # Pool structure matches IPAM XRD: pools.ipv4[], pools.ipv6.gua[], pools.ipv6.ula[]
   #
   # For dual-stack VPCs, reference both an IPv4 pool ID and IPv6 pool ID
 
   ipam:
-    homeRegion: us-east-1
+    region: us-east-1
     operatingRegions:
       - us-east-1
       - us-west-2
@@ -205,149 +201,161 @@ spec:
       # ==========================================================================
       # IPv4 Pools
       # ==========================================================================
-
-      # Production IPv4 pool - US East 1
-      - name: prod-ipv4-us-east-1
-        addressFamily: ipv4
-        region: us-east-1
-        cidr: 10.0.0.0/12
-        allocationDefaultNetmaskLength: 20
-        allocationMinNetmaskLength: 20
-        allocationMaxNetmaskLength: 26
-        description: Production IPv4 VPCs in US East 1
-        labels:
-          environment: production
+      ipv4:
+        # Production IPv4 pool - US East 1
+        - name: prod-ipv4-us-east-1
           region: us-east-1
+          cidr: 10.0.0.0/12
+          allocations:
+            netmaskLength:
+              default: 20
+              min: 20
+              max: 26
+          description: Production IPv4 VPCs in US East 1
+          labels:
+            environment: production
+            region: us-east-1
 
-      # Production IPv4 pool - US West 2
-      - name: prod-ipv4-us-west-2
-        addressFamily: ipv4
-        region: us-west-2
-        locale: us-west-2
-        cidr: 10.16.0.0/12
-        allocationDefaultNetmaskLength: 20
-        description: Production IPv4 VPCs in US West 2
-        labels:
-          environment: production
+        # Production IPv4 pool - US West 2
+        - name: prod-ipv4-us-west-2
           region: us-west-2
+          locale: us-west-2
+          cidr: 10.16.0.0/12
+          allocations:
+            netmaskLength:
+              default: 20
+          description: Production IPv4 VPCs in US West 2
+          labels:
+            environment: production
+            region: us-west-2
 
-      # Non-production IPv4 pool
-      - name: non-prod-ipv4-us-east-1
-        addressFamily: ipv4
-        region: us-east-1
-        cidr: 10.32.0.0/12
-        allocationDefaultNetmaskLength: 22
-        allocationMinNetmaskLength: 22
-        allocationMaxNetmaskLength: 28
-        description: Non-production IPv4 VPCs
-        labels:
-          environment: non-production
-
-      # Shared services IPv4 pool
-      - name: shared-services-ipv4
-        addressFamily: ipv4
-        region: us-east-1
-        cidr: 10.48.0.0/16
-        allocationDefaultNetmaskLength: 24
-        description: Shared infrastructure IPv4 VPCs
-        labels:
-          environment: shared
-
-      # ==========================================================================
-      # IPv6 Public Pools (Amazon-provided GUA)
-      # ==========================================================================
-      # These pools use Amazon's public IPv6 address space.
-      # Each pool gets a /52 that can allocate /56 blocks to VPCs.
-      #
-      # Dual-stack benefits:
-      # - VPC gets both IPv4 and IPv6 CIDRs
-      # - Subnets get /64 from VPC's /56
-      # - Pods can use IPv6 addresses directly
-      # - Prefix delegation provides /80 per node for scalable pod addressing
-
-      # Production IPv6 pool - US East 1 (Amazon-provided)
-      - name: prod-ipv6-us-east-1
-        addressFamily: ipv6
-        scope: public
-        region: us-east-1
-        locale: us-east-1
-        publicIpSource: amazon
-        awsService: ec2
-        allocationDefaultNetmaskLength: 56
-        allocationMinNetmaskLength: 52
-        allocationMaxNetmaskLength: 60
-        description: Production IPv6 VPCs in US East 1 (Amazon GUA)
-        labels:
-          environment: production
+        # Non-production IPv4 pool
+        - name: non-prod-ipv4-us-east-1
           region: us-east-1
-          eks-ready: "true"
+          cidr: 10.32.0.0/12
+          allocations:
+            netmaskLength:
+              default: 22
+              min: 22
+              max: 28
+          description: Non-production IPv4 VPCs
+          labels:
+            environment: non-production
 
-      # Production IPv6 pool - US West 2 (Amazon-provided)
-      - name: prod-ipv6-us-west-2
-        addressFamily: ipv6
-        scope: public
-        region: us-west-2
-        locale: us-west-2
-        publicIpSource: amazon
-        awsService: ec2
-        allocationDefaultNetmaskLength: 56
-        allocationMinNetmaskLength: 52
-        allocationMaxNetmaskLength: 60
-        description: Production IPv6 VPCs in US West 2 (Amazon GUA)
-        labels:
-          environment: production
-          region: us-west-2
-          eks-ready: "true"
-
-      # Non-production IPv6 pool (Amazon-provided)
-      - name: non-prod-ipv6-us-east-1
-        addressFamily: ipv6
-        scope: public
-        region: us-east-1
-        locale: us-east-1
-        publicIpSource: amazon
-        awsService: ec2
-        allocationDefaultNetmaskLength: 56
-        allocationMinNetmaskLength: 56
-        allocationMaxNetmaskLength: 60
-        description: Non-production IPv6 VPCs (Amazon GUA)
-        labels:
-          environment: non-production
-          eks-ready: "true"
-
-      # Shared services IPv6 pool (Amazon-provided)
-      - name: shared-services-ipv6
-        addressFamily: ipv6
-        scope: public
-        region: us-east-1
-        locale: us-east-1
-        publicIpSource: amazon
-        awsService: ec2
-        allocationDefaultNetmaskLength: 56
-        description: Shared infrastructure IPv6 VPCs (Amazon GUA)
-        labels:
-          environment: shared
-          eks-ready: "true"
+        # Shared services IPv4 pool
+        - name: shared-services-ipv4
+          region: us-east-1
+          cidr: 10.48.0.0/16
+          allocations:
+            netmaskLength:
+              default: 24
+          description: Shared infrastructure IPv4 VPCs
+          labels:
+            environment: shared
 
       # ==========================================================================
-      # IPv6 Private Pools (Optional - ULA for internal-only traffic)
+      # IPv6 Pools
       # ==========================================================================
-      # Use private IPv6 pools for workloads that need IPv6 internally
-      # but should NOT be internet-routable. Uses ULA range fd00::/8.
-      #
-      # Example: Internal microservices, databases, backend systems
+      ipv6:
+        # --------------------------------------------------------------------------
+        # GUA Pools (Amazon-provided, internet-routable)
+        # --------------------------------------------------------------------------
+        # These pools use Amazon's public IPv6 address space.
+        # Each pool gets a /52 that can allocate /56 blocks to VPCs.
+        #
+        # Dual-stack benefits:
+        # - VPC gets both IPv4 and IPv6 CIDRs
+        # - Subnets get /64 from VPC's /56
+        # - Pods can use IPv6 addresses directly
+        # - Prefix delegation provides /80 per node for scalable pod addressing
+        gua:
+          # Production IPv6 pool - US East 1 (Amazon-provided)
+          - name: prod-ipv6-us-east-1
+            region: us-east-1
+            locale: us-east-1
+            netmaskLength: 52
+            publicIpSource: amazon
+            awsService: ec2
+            allocations:
+              netmaskLength:
+                default: 56
+                min: 52
+                max: 60
+            description: Production IPv6 VPCs in US East 1 (Amazon GUA)
+            labels:
+              environment: production
+              region: us-east-1
+              eks-ready: "true"
 
-      # Private IPv6 pool for internal services (ULA)
-      - name: internal-ipv6-us-east-1
-        addressFamily: ipv6
-        scope: private
-        region: us-east-1
-        locale: us-east-1
-        cidr: fd00:acme:0::/48
-        allocationDefaultNetmaskLength: 56
-        allocationMinNetmaskLength: 48
-        allocationMaxNetmaskLength: 64
-        description: Internal-only IPv6 VPCs (ULA - not internet routable)
-        labels:
-          environment: internal
-          internet-routable: "false"
+          # Production IPv6 pool - US West 2 (Amazon-provided)
+          - name: prod-ipv6-us-west-2
+            region: us-west-2
+            locale: us-west-2
+            netmaskLength: 52
+            publicIpSource: amazon
+            awsService: ec2
+            allocations:
+              netmaskLength:
+                default: 56
+                min: 52
+                max: 60
+            description: Production IPv6 VPCs in US West 2 (Amazon GUA)
+            labels:
+              environment: production
+              region: us-west-2
+              eks-ready: "true"
+
+          # Non-production IPv6 pool (Amazon-provided)
+          - name: non-prod-ipv6-us-east-1
+            region: us-east-1
+            locale: us-east-1
+            netmaskLength: 52
+            publicIpSource: amazon
+            awsService: ec2
+            allocations:
+              netmaskLength:
+                default: 56
+                min: 56
+                max: 60
+            description: Non-production IPv6 VPCs (Amazon GUA)
+            labels:
+              environment: non-production
+              eks-ready: "true"
+
+          # Shared services IPv6 pool (Amazon-provided)
+          - name: shared-services-ipv6
+            region: us-east-1
+            locale: us-east-1
+            netmaskLength: 52
+            publicIpSource: amazon
+            awsService: ec2
+            allocations:
+              netmaskLength:
+                default: 56
+            description: Shared infrastructure IPv6 VPCs (Amazon GUA)
+            labels:
+              environment: shared
+              eks-ready: "true"
+
+        # --------------------------------------------------------------------------
+        # ULA Pools (Private, not internet-routable)
+        # --------------------------------------------------------------------------
+        # Use private IPv6 pools for workloads that need IPv6 internally
+        # but should NOT be internet-routable. Uses ULA range fd00::/8.
+        #
+        # Example: Internal microservices, databases, backend systems
+        ula:
+          # Private IPv6 pool for internal services (ULA)
+          - name: internal-ipv6-us-east-1
+            region: us-east-1
+            locale: us-east-1
+            cidr: fd00:acme:0::/48
+            allocations:
+              netmaskLength:
+                default: 56
+                min: 48
+                max: 64
+            description: Internal-only IPv6 VPCs (ULA - not internet routable)
+            labels:
+              environment: internal
+              internet-routable: "false"
