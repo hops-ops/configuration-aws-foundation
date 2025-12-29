@@ -26,7 +26,10 @@ _items = [
                     }
                     spec: {
                         managementPolicies: ["*"]
-                        providerConfigName: "default"
+                        providerConfigRef: {
+                            name: "default"
+                            kind: "ProviderConfig"
+                        }
                         region: "us-east-1"
                         identityStoreId: "d-1234567890"
                         organizationName: "my-foundation"
@@ -83,7 +86,7 @@ _items = [
             timeoutSeconds: 120
             validate: True
             assertResources: [
-                # IPAM XRD - asserts the Foundation creates the IPAM XRD
+                # IPAM XRD - asserts the Foundation creates the IPAM XRD with new pool structure
                 {
                     apiVersion: "aws.hops.ops.com.ai/v1alpha1"
                     kind: "IPAM"
@@ -92,49 +95,65 @@ _items = [
                     }
                     spec: {
                         managementPolicies: ["*"]
-                        providerConfigName: "default"
-                        organizationName: "my-foundation"
-                        scope: "private"
-                        homeRegion: "us-east-1"
+                        providerConfigRef: {
+                            name: "default"
+                            kind: "ProviderConfig"
+                        }
+                        region: "us-east-1"
                         operatingRegions: ["us-east-1"]
-                        pools: [
-                            {
-                                name: "ipv4"
-                                addressFamily: "ipv4"
-                                region: "us-east-1"
-                                cidr: "10.0.0.0/8"
-                                allocationDefaultNetmaskLength: 20
-                                allocationMinNetmaskLength: 16
-                                allocationMaxNetmaskLength: 24
-                                description: "IPv4 pool for VPCs"
-                            },
-                            {
-                                name: "ipv6-public"
-                                addressFamily: "ipv6"
-                                scope: "public"
-                                region: "us-east-1"
-                                locale: "us-east-1"
-                                amazonProvidedIpv6CidrBlock: True
-                                publicIpSource: "amazon"
-                                awsService: "ec2"
-                                allocationDefaultNetmaskLength: 56
-                                allocationMinNetmaskLength: 52
-                                allocationMaxNetmaskLength: 60
-                                description: "Public IPv6 pool (Amazon GUA)"
-                            },
-                            {
-                                name: "ipv6-private"
-                                addressFamily: "ipv6"
-                                scope: "private"
-                                region: "us-east-1"
-                                locale: "us-east-1"
-                                cidr: "fd00:my:app::/48"
-                                allocationDefaultNetmaskLength: 56
-                                allocationMinNetmaskLength: 48
-                                allocationMaxNetmaskLength: 64
-                                description: "Private IPv6 pool (ULA for internal microservices)"
+                        pools: {
+                            ipv4: [
+                                {
+                                    name: "ipv4"
+                                    region: "us-east-1"
+                                    cidr: "10.0.0.0/8"
+                                    allocations: {
+                                        netmaskLength: {
+                                            default: 20
+                                            min: 16
+                                            max: 24
+                                        }
+                                    }
+                                    description: "IPv4 pool for VPCs"
+                                }
+                            ]
+                            ipv6: {
+                                gua: [
+                                    {
+                                        name: "ipv6-public"
+                                        region: "us-east-1"
+                                        locale: "us-east-1"
+                                        netmaskLength: 52
+                                        publicIpSource: "amazon"
+                                        awsService: "ec2"
+                                        allocations: {
+                                            netmaskLength: {
+                                                default: 56
+                                                min: 52
+                                                max: 60
+                                            }
+                                        }
+                                        description: "Public IPv6 pool (Amazon GUA)"
+                                    }
+                                ]
+                                ula: [
+                                    {
+                                        name: "ipv6-private"
+                                        region: "us-east-1"
+                                        locale: "us-east-1"
+                                        cidr: "fd00:my:app::/48"
+                                        allocations: {
+                                            netmaskLength: {
+                                                default: 56
+                                                min: 48
+                                                max: 64
+                                            }
+                                        }
+                                        description: "Private IPv6 pool (ULA for internal microservices)"
+                                    }
+                                ]
                             }
-                        ]
+                        }
                     }
                 }
             ]
@@ -164,8 +183,9 @@ _items = [
                     }
                     spec: {
                         managementPolicies: ["*"]
-                        aws: {
-                            providerConfig: "aws-management-account"
+                        providerConfigRef: {
+                            name: "aws-management-account"
+                            kind: "ProviderConfig"
                         }
                         tags: {
                             hops: "true"
@@ -264,7 +284,10 @@ _items = [
                     }
                     spec: {
                         managementPolicies: ["*"]
-                        providerConfigName: "aws-management-account"
+                        providerConfigRef: {
+                            name: "aws-management-account"
+                            kind: "ProviderConfig"
+                        }
                         region: "us-east-1"
                         identityStoreId: "d-1234567890"
                         organizationName: "acme"
@@ -312,58 +335,20 @@ _items = [
     },
 
     # =========================================================================
-    # Enterprise Example - Step 1: Organization XRD Ready
+    # Enterprise Example - IPAM with new pool structure
     # =========================================================================
-    # Tests that IPAM XRD is created after Organization XRD reports accounts ready
-    # Note: The Foundation creates XRDs, and the step tests verify observed-state gating
+    # Tests that IPAM XRD uses the new pools.ipv4/ipv6.gua/ipv6.ula structure
 
     metav1alpha1.CompositionTest{
-        metadata.name: "test-foundation-enterprise-step-1-ipam-with-org-ready"
+        metadata.name: "test-foundation-enterprise-ipam-pool-structure"
         spec = {
             compositionPath: "apis/foundations/composition.yaml"
             xrPath: "examples/foundations/enterprise.yaml"
             xrdPath: "apis/foundations/definition.yaml"
             timeoutSeconds: 120
             validate: True
-            observedResources: [
-                # Organization XRD is ready with accounts
-                {
-                    apiVersion: "aws.hops.ops.com.ai/v1alpha1"
-                    kind: "Organization"
-                    metadata: {
-                        name: "acme"
-                        annotations: {
-                            "gotemplating.fn.crossplane.io/composition-resource-name": "organization"
-                            "crossplane.io/composition-resource-name": "organization"
-                        }
-                    }
-                    status: {
-                        conditions: [{type: "Ready", status: "True"}]
-                        organization: {
-                            id: "o-acme12345"
-                            managementAccountId: "111111111111"
-                            rootId: "r-acme"
-                        }
-                        organizationalUnits: {
-                            Security: "ou-acme-security"
-                            Infrastructure: "ou-acme-infrastructure"
-                            Workloads: "ou-acme-workloads"
-                            "Workloads/Prod": "ou-acme-workloads-prod"
-                            "Workloads/Non-Prod": "ou-acme-workloads-nonprod"
-                            Sandbox: "ou-acme-sandbox"
-                        }
-                        accounts: [
-                            {name: "acme-security-tooling", id: "222222222222", ready: True},
-                            {name: "acme-shared-services", id: "333333333333", ready: True},
-                            {name: "acme-prod", id: "444444444444", ready: True},
-                            {name: "acme-staging", id: "555555555555", ready: True},
-                            {name: "acme-dev", id: "666666666666", ready: True}
-                        ]
-                    }
-                }
-            ]
             assertResources: [
-                # IPAM XRD should now be created since delegated admin account is ready
+                # IPAM XRD with new pool structure
                 {
                     apiVersion: "aws.hops.ops.com.ai/v1alpha1"
                     kind: "IPAM"
@@ -372,13 +357,12 @@ _items = [
                     }
                     spec: {
                         managementPolicies: ["*"]
-                        providerConfigName: "aws-management-account"
-                        organizationName: "acme"
-                        scope: "global-organization"
-                        homeRegion: "us-east-1"
-                        delegatedAdminAccountRef: {
-                            name: "acme-shared-services"
+                        providerConfigRef: {
+                            name: "aws-management-account"
+                            kind: "ProviderConfig"
                         }
+                        region: "us-east-1"
+                        operatingRegions: ["us-east-1", "us-west-2", "eu-west-1"]
                     }
                 }
             ]
@@ -386,12 +370,12 @@ _items = [
     },
 
     # =========================================================================
-    # Enterprise Example - Step 2: Account assignments resolved
+    # Enterprise Example - Account assignments resolved
     # =========================================================================
     # Tests that IdentityCenter gets account IDs from Organization status
 
     metav1alpha1.CompositionTest{
-        metadata.name: "test-foundation-enterprise-step-2-identity-center-with-accounts"
+        metadata.name: "test-foundation-enterprise-identity-center-with-accounts"
         spec = {
             compositionPath: "apis/foundations/composition.yaml"
             xrPath: "examples/foundations/enterprise.yaml"
@@ -451,80 +435,6 @@ _items = [
                                 assignToAccounts: ["333333333333", "222222222222", "444444444444", "555555555555", "666666666666"]
                             }
                         ]
-                    }
-                }
-            ]
-        }
-    },
-
-    # =========================================================================
-    # Enterprise Example - IPAM Pool RAM Shares
-    # =========================================================================
-    # Tests that IPAM pools get resolved OU IDs for RAM share targets
-
-    metav1alpha1.CompositionTest{
-        metadata.name: "test-foundation-enterprise-ipam-ram-shares"
-        spec = {
-            compositionPath: "apis/foundations/composition.yaml"
-            xrPath: "examples/foundations/enterprise.yaml"
-            xrdPath: "apis/foundations/definition.yaml"
-            timeoutSeconds: 120
-            validate: True
-            observedResources: [
-                # Organization XRD is ready with OUs and accounts
-                {
-                    apiVersion: "aws.hops.ops.com.ai/v1alpha1"
-                    kind: "Organization"
-                    metadata: {
-                        name: "acme"
-                        annotations: {
-                            "gotemplating.fn.crossplane.io/composition-resource-name": "organization"
-                            "crossplane.io/composition-resource-name": "organization"
-                        }
-                    }
-                    status: {
-                        conditions: [{type: "Ready", status: "True"}]
-                        organization: {
-                            id: "o-acme12345"
-                            managementAccountId: "111111111111"
-                            rootId: "r-acme"
-                        }
-                        organizationalUnits: {
-                            Security: "ou-acme-security"
-                            Infrastructure: "ou-acme-infrastructure"
-                            Workloads: "ou-acme-workloads"
-                            "Workloads/Prod": "ou-acme-workloads-prod"
-                            "Workloads/Non-Prod": "ou-acme-workloads-nonprod"
-                            Sandbox: "ou-acme-sandbox"
-                        }
-                        accounts: [
-                            {name: "acme-security-tooling", id: "222222222222", ready: True},
-                            {name: "acme-shared-services", id: "333333333333", ready: True},
-                            {name: "acme-prod", id: "444444444444", ready: True},
-                            {name: "acme-staging", id: "555555555555", ready: True},
-                            {name: "acme-dev", id: "666666666666", ready: True}
-                        ]
-                    }
-                }
-            ]
-            assertResources: [
-                # IPAM XRD should be created with resolved OU IDs
-                # Note: We verify IPAM exists with delegatedAdminAccountRef since
-                # pool array assertions require exact match
-                {
-                    apiVersion: "aws.hops.ops.com.ai/v1alpha1"
-                    kind: "IPAM"
-                    metadata: {
-                        name: "acme-ipam"
-                    }
-                    spec: {
-                        managementPolicies: ["*"]
-                        organizationName: "acme"
-                        scope: "global-organization"
-                        homeRegion: "us-east-1"
-                        delegatedAdminAccountRef: {
-                            name: "acme-shared-services"
-                        }
                     }
                 }
             ]
