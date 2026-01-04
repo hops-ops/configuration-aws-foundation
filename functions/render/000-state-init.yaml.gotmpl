@@ -61,11 +61,11 @@
       "managementPolicies" ($spec.managementPolicies | default (list "*"))
 
       "providerConfigRef" (dict
-        "name" ($awsProviderConfigRef.name | default $name | default "default")
+        "name" ($awsProviderConfigRef.name | default "default")
         "kind" ($awsProviderConfigRef.kind | default "ProviderConfig")
       )
       "kubernetesProviderConfigRef" (dict
-        "name" ($k8sProviderConfigRef.name | default $name | default "default")
+        "name" ($k8sProviderConfigRef.name | default "default")
         "kind" ($k8sProviderConfigRef.kind | default "ProviderConfig")
       )
 
