@@ -138,14 +138,15 @@ _foundation_manifest = {
     spec: {
         managementPolicies: _observeOnly
 
-        aws: {
-            providerConfig: "default"
-            region: _region
+        providerConfigRef: {
+            name: "default"
+            kind: "ProviderConfig"
         }
-
-        k8s: {
-            providerConfig: _foundation_name
+        kubernetesProviderConfigRef: {
+            name: _foundation_name
+            kind: "ProviderConfig"
         }
+        region: _region
 
         memberAccountsProviderConfigs: {
             managementPolicies: ["*"]
