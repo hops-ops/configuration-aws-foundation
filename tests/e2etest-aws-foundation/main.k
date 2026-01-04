@@ -327,7 +327,7 @@ _foundation_manifest = {
             {
                 name: "e2etest-network"
                 region: _region
-                # No account specified = uses management account (spec.aws.providerConfig)
+                # No account specified = uses management account (spec.providerConfigRef)
                 managementPolicies: _observeOnly
 
                 # Reference regional pools by name - Foundation resolves to pool IDs

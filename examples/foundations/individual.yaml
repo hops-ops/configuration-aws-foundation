@@ -172,11 +172,11 @@ spec:
   # ---------------------------------------------------------------------------
   # Network - Dual-stack VPC with IPAM allocation
   # ---------------------------------------------------------------------------
-  # For single-account setups, omit `account` to use spec.aws.providerConfig.
+  # For single-account setups, omit `account` to use spec.providerConfigRef.
   # The network allocates its CIDR from the regional IPAM pool.
   networks:
     - name: main
-      # No account = uses management account (spec.aws.providerConfig)
+      # No account = uses management account (spec.providerConfigRef)
       region: us-east-1
       ipam:
         ipv4:

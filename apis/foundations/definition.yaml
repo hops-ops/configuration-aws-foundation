@@ -404,7 +404,7 @@ spec:
                 description: |
                   VPC networks to create. Each network creates an aws-network Network instance.
                   When account is specified, uses that account's ProviderConfig.
-                  When account is omitted, uses spec.aws.providerConfig (management account).
+                  When account is omitted, uses spec.providerConfigRef (management account).
                 items:
                   type: object
                   required:

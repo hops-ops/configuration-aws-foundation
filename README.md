@@ -982,7 +982,7 @@ status:
 - **Use networkDefaults** - Define consistent subnet layouts once, override where needed
 - **Use poolRef, not poolId** - Reference pools by name for clarity and maintainability
 - **Right-size per environment** - Production needs HA NAT and 3 AZs; dev can use 1 AZ with no NAT
-- **Omit account for management account** - Networks without `account` target `spec.aws.providerConfig`
+- **Omit account for management account** - Networks without `account` target `spec.providerConfigRef`
 - **Import existing VPCs** - Use `externalName` and `managementPolicies: ["Observe"]` to adopt VPCs
 
 ### IPv6 Pool Sizing Reference
