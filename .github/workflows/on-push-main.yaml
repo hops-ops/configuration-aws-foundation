@@ -32,7 +32,8 @@ jobs:
           { "example": "examples/foundations/enterprise.yaml" },
           { "example": "examples/foundations/enterprise.yaml", "observed_resources": "examples/test/mocks/observed-resources/enterprise/steps/1" },
           { "example": "examples/foundations/import-existing.yaml" },
-          { "example": "examples/foundations/with-networks.yaml" }
+          { "example": "examples/foundations/with-networks.yaml" },
+          { "example": "examples/foundations/with-ram-shares.yaml" }
         ]
       api_path: apis/foundations
       error_on_missing_schemas: true

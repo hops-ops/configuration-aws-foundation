@@ -1,4 +1,4 @@
-# configuration-aws-foundation
+# aws-foundation
 
 Foundation provides a single resource to manage your entire AWS foundation, from solo developer to enterprise. Start simple and evolve as you grow.
 
